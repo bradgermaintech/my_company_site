@@ -118,43 +118,45 @@ export function SettingsProfileForm() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Notification rules</CardTitle>
-          <CardDescription>
-            Keep important agency movement visible without flooding the team.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <label className="flex items-start gap-3 rounded-lg border bg-slate-50 p-3">
-            <Checkbox {...register("dailyDigest")} />
-            <span>
-              <span className="block text-sm font-semibold">Daily digest</span>
-              <span className="block text-sm leading-6 text-muted-foreground">
-                Pipeline, interviews, releases, and overdue tasks every morning.
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Notification rules</CardTitle>
+            <CardDescription>
+              Keep important agency movement visible without flooding the team.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <label className="flex items-start gap-3 rounded-lg border bg-slate-50 p-3">
+              <Checkbox {...register("dailyDigest")} />
+              <span>
+                <span className="block text-sm font-semibold">Daily digest</span>
+                <span className="block text-sm leading-6 text-muted-foreground">
+                  Pipeline, interviews, releases, and overdue tasks every morning.
+                </span>
               </span>
-            </span>
-          </label>
-          <label className="flex items-start gap-3 rounded-lg border bg-slate-50 p-3">
-            <Checkbox {...register("releaseAlerts")} />
-            <span>
-              <span className="block text-sm font-semibold">Release alerts</span>
-              <span className="block text-sm leading-6 text-muted-foreground">
-                Notify admins when release or payment states change.
+            </label>
+            <label className="flex items-start gap-3 rounded-lg border bg-slate-50 p-3">
+              <Checkbox {...register("releaseAlerts")} />
+              <span>
+                <span className="block text-sm font-semibold">Release alerts</span>
+                <span className="block text-sm leading-6 text-muted-foreground">
+                  Notify admins when release or payment states change.
+                </span>
               </span>
-            </span>
-          </label>
-          <label className="flex items-start gap-3 rounded-lg border bg-slate-50 p-3">
-            <Checkbox {...register("interviewAlerts")} />
-            <span>
-              <span className="block text-sm font-semibold">Interview alerts</span>
-              <span className="block text-sm leading-6 text-muted-foreground">
-                Notify callers and developers before stage-critical calls.
+            </label>
+            <label className="flex items-start gap-3 rounded-lg border bg-slate-50 p-3">
+              <Checkbox {...register("interviewAlerts")} />
+              <span>
+                <span className="block text-sm font-semibold">Interview alerts</span>
+                <span className="block text-sm leading-6 text-muted-foreground">
+                  Notify callers and developers before stage-critical calls.
+                </span>
               </span>
-            </span>
-          </label>
-        </CardContent>
-      </Card>
+            </label>
+          </CardContent>
+        </Card>
+      </div>
     </form>
   );
 }
