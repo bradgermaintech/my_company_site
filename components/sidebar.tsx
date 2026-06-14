@@ -8,6 +8,7 @@ import {
   Settings,
   UsersRound
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/models";
 
@@ -108,6 +109,15 @@ export function Sidebar({ active, role }: SidebarProps) {
         </nav>
 
         <div className="border-t p-4">
+          <div className="mb-4 rounded-lg border bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Theme
+            </p>
+            <div className="mt-3">
+              <ThemeToggle />
+            </div>
+          </div>
+
           <div className="rounded-lg bg-slate-50 p-4">
             <p className="text-sm font-semibold text-foreground">Agency health</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
