@@ -22,6 +22,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  image?: string | null;
   role: UserRole;
   avatar: string;
   active: boolean;

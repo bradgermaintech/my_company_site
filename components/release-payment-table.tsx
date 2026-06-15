@@ -13,10 +13,23 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { applications, getApplication, getUser, releases } from "@/lib/data";
+import type { JobApplication, Release, User } from "@/lib/models";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-export function ReleasePaymentTable() {
+type ReleasePaymentTableProps = {
+  applications: JobApplication[];
+  releases: Release[];
+  users: User[];
+};
+
+export function ReleasePaymentTable({
+  applications,
+  releases,
+  users
+}: ReleasePaymentTableProps) {
+  const applicationsById = new Map(applications.map((application) => [application.id, application]));
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
   return (
     <Card>
       <CardHeader>
@@ -36,9 +49,8 @@ export function ReleasePaymentTable() {
           </TableHeader>
           <TableBody>
             {releases.map((release) => {
-              const application =
-                getApplication(release.applicationId) ?? applications[0];
-              const approver = getUser(release.approvedBy);
+              const application = applicationsById.get(release.applicationId) ?? applications[0];
+              const approver = usersById.get(release.approvedBy);
 
               return (
                 <TableRow key={release.id}>

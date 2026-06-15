@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ThemeMode = "day" | "night";
+type ThemeToggleProps = {
+  compact?: boolean;
+};
 
 const storageKey = "pipelineos-theme";
 
@@ -14,7 +17,7 @@ function applyTheme(mode: ThemeMode) {
   window.localStorage.setItem(storageKey, mode);
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ compact = false }: ThemeToggleProps) {
   const [mode, setMode] = useState<ThemeMode>("day");
 
   useEffect(() => {
@@ -47,7 +50,10 @@ export function ThemeToggle() {
       aria-pressed={isNight}
       aria-label={`Switch to ${isNight ? "day" : "night"} mode`}
       onClick={toggleTheme}
-      className="h-12 w-full justify-between px-3"
+      className={cn(
+        "justify-between px-3",
+        compact ? "h-10 w-auto gap-3" : "h-12 w-full"
+      )}
     >
       <span className="flex items-center gap-2">
         {isNight ? (
@@ -55,7 +61,9 @@ export function ThemeToggle() {
         ) : (
           <Sun className="size-4" aria-hidden="true" />
         )}
-        {isNight ? "Night mode" : "Day mode"}
+        <span className={cn(compact && "hidden sm:inline")}>
+          {isNight ? "Night mode" : "Day mode"}
+        </span>
       </span>
       <span
         className={cn(

@@ -18,7 +18,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
-import { pipelineStatuses } from "@/lib/data";
+import { pipelineStatuses } from "@/lib/constants";
 import type { JobApplication } from "@/lib/models";
 
 type BidderAnalyticsProps = {

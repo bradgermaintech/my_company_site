@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FileText, Link2, Sparkles, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { JobApplication, ResumeTailor } from "@/lib/models";
 
 const resumeTailorSchema = z.object({
   baseResumeText: z.string().min(80, "Paste at least a short resume summary."),
@@ -39,8 +40,26 @@ const defaultValues: ResumeTailorForm = {
   jdLink: "https://example.com/jobs/nextjs-saas-platform"
 };
 
-export function ResumeTailorPanel() {
-  const [generated, setGenerated] = useState<GeneratedResume | null>(null);
+type ResumeTailorPanelProps = {
+  applications: JobApplication[];
+  initialResumeTailors: ResumeTailor[];
+};
+
+export function ResumeTailorPanel({
+  applications,
+  initialResumeTailors
+}: ResumeTailorPanelProps) {
+  const latestTailor = initialResumeTailors[0];
+  const [generated, setGenerated] = useState<GeneratedResume | null>(
+    latestTailor
+      ? {
+          summary: latestTailor.tailoredSummary,
+          skillMatch: latestTailor.skillMatch,
+          coverLetter: latestTailor.coverLetter
+        }
+      : null
+  );
+  const [isSaving, startTransition] = useTransition();
   const {
     register,
     handleSubmit,
@@ -64,11 +83,35 @@ export function ResumeTailorPanel() {
       jd.includes("release") ? "release coordination" : "cross-functional delivery"
     ];
 
-    setGenerated({
+    const nextGenerated = {
       summary: `Senior software engineer focused on ${focusAreas.join(", ")} with a track record of shipping production SaaS systems for agency and product teams.`,
       skillMatch: `Strong matches: ${focusAreas.join(" | ")} | TypeScript | API design | stakeholder communication | delivery ownership.`,
       coverLetter:
         "I can help your team turn this role into reliable delivery by combining senior product engineering, clear technical communication, and release-ready execution from the first sprint."
+    };
+
+    setGenerated(nextGenerated);
+
+    if (!applications[0]) {
+      return;
+    }
+
+    startTransition(async () => {
+      await fetch("/api/resume-tailors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          applicationId: applications[0].id,
+          jdLink: values.jdLink || null,
+          baseResumeText: values.baseResumeText,
+          jobDescription: values.jobDescription,
+          tailoredSummary: nextGenerated.summary,
+          skillMatch: nextGenerated.skillMatch,
+          coverLetter: nextGenerated.coverLetter
+        })
+      });
     });
   }
 
@@ -154,9 +197,9 @@ export function ResumeTailorPanel() {
               value={generated?.coverLetter}
               fallback="A concise cover letter draft is produced for fast personalization."
             />
-            <Button type="submit" disabled={isSubmitting} className="w-full">
+            <Button type="submit" disabled={isSubmitting || isSaving} className="w-full">
               <Sparkles className="size-4" aria-hidden="true" />
-              Generate tailored package
+              {isSaving ? "Saving tailored package" : "Generate tailored package"}
             </Button>
           </div>
         </form>

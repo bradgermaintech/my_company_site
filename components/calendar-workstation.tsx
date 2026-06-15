@@ -1,7 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock, GripVertical, Video } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarPlus,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  GripVertical,
+  Video
+} from "lucide-react";
 import { InterviewModal } from "@/components/interview-modal";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -12,11 +19,11 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
-import { applications, getApplication, getUser, interviews as initialInterviews } from "@/lib/data";
-import type { Interview, InterviewStage } from "@/lib/models";
+import type { Interview, InterviewStage, JobApplication, User } from "@/lib/models";
 import { cn, formatDate } from "@/lib/utils";
 
 type CalendarView = "month" | "week" | "day";
+
 type WeekDay = {
   key: string;
   label: string;
@@ -24,7 +31,18 @@ type WeekDay = {
   date: Date;
 };
 
+type CalendarWorkstationProps = {
+  applications: JobApplication[];
+  currentCallerId: string;
+  initialInterviews: Interview[];
+  users: User[];
+};
+
 const stages = ["Intro", "Tech", "Culture", "Final"] as const;
+const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const slotHours = Array.from({ length: 12 }, (_, index) => index + 8);
+const slotHeight = 72;
+
 const stageTone: Record<InterviewStage, string> = {
   Intro:
     "border-l-sky-500 bg-sky-50 text-sky-950 ring-1 ring-inset ring-sky-200 dark:bg-sky-500/18 dark:text-sky-100 dark:ring-sky-400/30",
@@ -35,9 +53,6 @@ const stageTone: Record<InterviewStage, string> = {
   Final:
     "border-l-amber-500 bg-amber-50 text-amber-950 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/18 dark:text-amber-100 dark:ring-amber-400/30"
 };
-const slotHours = Array.from({ length: 12 }, (_, index) => index + 8);
-const slotHeight = 72;
-const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function startOfWeek(date: Date) {
   const next = new Date(date);
@@ -74,15 +89,48 @@ function formatTimeLabel(date: string) {
   }).format(new Date(date));
 }
 
-export function CalendarWorkstation() {
+function getInterviewOffset(interview: Interview) {
+  const start = new Date(interview.startTime);
+  const startHour = start.getUTCHours();
+  const startMinutes = start.getUTCMinutes();
+  const minutesFromStart = (startHour - slotHours[0]) * 60 + startMinutes;
+  return Math.max(0, (minutesFromStart / 60) * slotHeight);
+}
+
+function getInterviewHeight(interview: Interview) {
+  const start = new Date(interview.startTime).getTime();
+  const end = new Date(interview.endTime).getTime();
+  const durationMinutes = Math.max(30, (end - start) / (1000 * 60));
+  return (durationMinutes / 60) * slotHeight;
+}
+
+export function CalendarWorkstation({
+  applications,
+  currentCallerId,
+  initialInterviews,
+  users
+}: CalendarWorkstationProps) {
   const [view, setView] = useState<CalendarView>("week");
   const [modalOpen, setModalOpen] = useState(false);
   const [items, setItems] = useState<Interview[]>(initialInterviews);
+  const [weekOffset, setWeekOffset] = useState(0);
 
-  const weekStart = useMemo(() => {
+  const developers = useMemo(
+    () => users.filter((user) => user.role === "developer" && user.active),
+    [users]
+  );
+  const applicationsById = useMemo(
+    () => new Map(applications.map((application) => [application.id, application])),
+    [applications]
+  );
+  const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+
+  const baseWeekStart = useMemo(() => {
     const reference = items[0] ? new Date(items[0].startTime) : new Date("2026-06-08T00:00:00Z");
     return startOfWeek(reference);
   }, [items]);
+
+  const weekStart = useMemo(() => addDays(baseWeekStart, weekOffset * 7), [baseWeekStart, weekOffset]);
 
   const weekDays = useMemo<WeekDay[]>(
     () =>
@@ -100,6 +148,12 @@ export function CalendarWorkstation() {
 
   const [selectedDayKey, setSelectedDayKey] = useState(() => weekDays[0]?.key ?? "");
 
+  useEffect(() => {
+    if (!weekDays.find((day) => day.key === selectedDayKey)) {
+      setSelectedDayKey(weekDays[0]?.key ?? "");
+    }
+  }, [selectedDayKey, weekDays]);
+
   const monthDays = useMemo(() => {
     const firstDayOffset = 1;
     return [
@@ -115,14 +169,42 @@ export function CalendarWorkstation() {
   }, []);
 
   const upcoming = [...items]
-    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+    .sort((left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime())
     .slice(0, 5);
 
   const selectedDay = weekDays.find((day) => day.key === selectedDayKey) ?? weekDays[0];
-
   const selectedDayInterviews = selectedDay
     ? items.filter((interview) => isSameUtcDay(new Date(interview.startTime), selectedDay.date))
     : [];
+
+  async function handleAddInterview(values: {
+    applicationId: string;
+    developerId: string;
+    title: string;
+    stage: InterviewStage;
+    startTime: string;
+    endTime: string;
+    meetingLink: string;
+    notes: string;
+  }) {
+    const response = await fetch("/api/interviews", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        ...values,
+        callerId: currentCallerId
+      })
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const interview = (await response.json()) as Interview;
+    setItems((current) => [interview, ...current]);
+  }
 
   return (
     <>
@@ -151,15 +233,28 @@ export function CalendarWorkstation() {
             </Button>
           </div>
         </CardHeader>
+
         <CardContent className="grid gap-5 xl:grid-cols-[1fr_320px]">
           <div className="rounded-xl border bg-card p-3 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" size="icon" aria-label="Previous week">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Previous week"
+                    onClick={() => setWeekOffset((current) => current - 1)}
+                  >
                     <ChevronLeft className="size-4" aria-hidden="true" />
                   </Button>
-                  <Button type="button" variant="outline" size="icon" aria-label="Next week">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Next week"
+                    onClick={() => setWeekOffset((current) => current + 1)}
+                  >
                     <ChevronRight className="size-4" aria-hidden="true" />
                   </Button>
                   <div>
@@ -176,6 +271,7 @@ export function CalendarWorkstation() {
                   {view === "month" ? "Month grid" : view === "week" ? "Week planner" : "Day agenda"}
                 </p>
               </div>
+
               <div className="flex flex-wrap gap-2">
                 {stages.map((stage) => (
                   <span
@@ -192,14 +288,15 @@ export function CalendarWorkstation() {
             </div>
 
             {view === "month" ? (
-              <MonthGrid days={monthDays} interviews={items} />
+              <MonthGrid applications={applications} days={monthDays} interviews={items} />
             ) : (
               <WeekGrid
+                applications={applications}
                 interviews={items}
                 compact={view === "day"}
-                weekDays={weekDays}
-                selectedDayKey={selectedDay?.key}
                 onSelectDay={setSelectedDayKey}
+                selectedDayKey={selectedDay?.key}
+                weekDays={weekDays}
               />
             )}
           </div>
@@ -216,14 +313,17 @@ export function CalendarWorkstation() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold">Upcoming interviews</h3>
-                  <p className="text-xs text-muted-foreground">Meet links and stage context ready to launch.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Meet links and stage context ready to launch.
+                  </p>
                 </div>
                 <Video className="size-4 text-primary" aria-hidden="true" />
               </div>
+
               <div className="mt-4 flex flex-col gap-3">
                 {(view === "day" ? selectedDayInterviews : upcoming).map((interview) => {
-                  const application = getApplication(interview.applicationId) ?? applications[0];
-                  const developer = getUser(interview.developerId);
+                  const application = applicationsById.get(interview.applicationId) ?? applications[0];
+                  const developer = usersById.get(interview.developerId);
 
                   return (
                     <div key={interview.id} className="rounded-xl border bg-slate-50/80 p-3">
@@ -243,6 +343,7 @@ export function CalendarWorkstation() {
                     </div>
                   );
                 })}
+
                 {view === "day" && selectedDayInterviews.length === 0 ? (
                   <div className="rounded-xl border border-dashed bg-slate-50/70 p-4 text-sm text-muted-foreground">
                     No interviews booked for {selectedDay?.shortLabel}.
@@ -255,18 +356,23 @@ export function CalendarWorkstation() {
       </Card>
 
       <InterviewModal
+        applications={applications}
+        callerId={currentCallerId}
+        developers={developers}
         open={modalOpen}
         onOpenChange={setModalOpen}
-        onAdd={(interview) => setItems((current) => [interview, ...current])}
+        onAdd={handleAddInterview}
       />
     </>
   );
 }
 
 function MonthGrid({
+  applications,
   days,
   interviews
 }: {
+  applications: JobApplication[];
   days: Array<{ key: string; day: number | null }>;
   interviews: Interview[];
 }) {
@@ -277,6 +383,7 @@ function MonthGrid({
           {day}
         </div>
       ))}
+
       {days.map(({ key, day }) => {
         const dayInterviews = day
           ? interviews.filter((interview) => new Date(interview.startTime).getUTCDate() === day)
@@ -293,7 +400,11 @@ function MonthGrid({
             {day ? <p className="text-xs font-semibold">{day}</p> : null}
             <div className="mt-2 flex flex-col gap-1">
               {dayInterviews.slice(0, 2).map((interview) => (
-                <CalendarCard key={interview.id} interview={interview} />
+                <CalendarCard
+                  key={interview.id}
+                  applications={applications}
+                  interview={interview}
+                />
               ))}
             </div>
           </div>
@@ -304,12 +415,14 @@ function MonthGrid({
 }
 
 function WeekGrid({
+  applications,
   interviews,
   compact,
   weekDays,
   selectedDayKey,
   onSelectDay
 }: {
+  applications: JobApplication[];
   interviews: Interview[];
   weekDays: WeekDay[];
   compact?: boolean;
@@ -352,7 +465,9 @@ function WeekGrid({
             {visibleDays[0]?.label}
           </p>
           <p className="text-lg font-semibold">
-            {visibleDays[0] ? formatWeekdayDate(visibleDays[0].date, { month: "long", day: "numeric" }) : ""}
+            {visibleDays[0]
+              ? formatWeekdayDate(visibleDays[0].date, { month: "long", day: "numeric" })
+              : ""}
           </p>
         </div>
       )}
@@ -361,7 +476,9 @@ function WeekGrid({
         <div
           className={cn(
             "grid min-w-[900px]",
-            compact ? "grid-cols-[72px_minmax(280px,1fr)]" : "grid-cols-[72px_repeat(7,minmax(140px,1fr))]"
+            compact
+              ? "grid-cols-[72px_minmax(280px,1fr)]"
+              : "grid-cols-[72px_repeat(7,minmax(140px,1fr))]"
           )}
         >
           <div className="border-r bg-slate-50/70 dark:bg-slate-900/30">
@@ -405,6 +522,7 @@ function WeekGrid({
                   {dayInterviews.map((interview) => (
                     <TimedCalendarCard
                       key={interview.id}
+                      applications={applications}
                       interview={interview}
                       offset={getInterviewOffset(interview)}
                       height={getInterviewHeight(interview)}
@@ -420,8 +538,14 @@ function WeekGrid({
   );
 }
 
-function CalendarCard({ interview }: { interview: Interview }) {
-  const application = getApplication(interview.applicationId) ?? applications[0];
+function CalendarCard({
+  applications,
+  interview
+}: {
+  applications: JobApplication[];
+  interview: Interview;
+}) {
+  const application = applications.find((item) => item.id === interview.applicationId) ?? applications[0];
 
   return (
     <div className="cursor-grab rounded-md border-l-4 border-l-primary bg-blue-50/70 p-2 shadow-sm">
@@ -429,7 +553,9 @@ function CalendarCard({ interview }: { interview: Interview }) {
         <GripVertical className="mt-0.5 size-3.5 shrink-0 text-blue-500" aria-hidden="true" />
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-slate-900">{application.company}</p>
-          <p className="truncate text-[11px] text-slate-600">{interview.stage} - {application.jobTitle}</p>
+          <p className="truncate text-[11px] text-slate-600">
+            {interview.stage} - {application.jobTitle}
+          </p>
         </div>
       </div>
     </div>
@@ -437,15 +563,17 @@ function CalendarCard({ interview }: { interview: Interview }) {
 }
 
 function TimedCalendarCard({
+  applications,
   interview,
   offset,
   height
 }: {
+  applications: JobApplication[];
   interview: Interview;
   offset: number;
   height: number;
 }) {
-  const application = getApplication(interview.applicationId) ?? applications[0];
+  const application = applications.find((item) => item.id === interview.applicationId) ?? applications[0];
 
   return (
     <div
@@ -460,7 +588,7 @@ function TimedCalendarCard({
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold">{application.company}</p>
           <p className="truncate text-[11px] opacity-80">
-            {interview.stage} · {application.jobTitle}
+            {interview.stage} | {application.jobTitle}
           </p>
           <p className="mt-1 text-[11px] font-medium opacity-80">
             {formatTimeLabel(interview.startTime)} to {formatTimeLabel(interview.endTime)}
@@ -478,19 +606,4 @@ function PerformanceMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-xl font-bold">{value}</p>
     </div>
   );
-}
-
-function getInterviewOffset(interview: Interview) {
-  const start = new Date(interview.startTime);
-  const startHour = start.getUTCHours();
-  const startMinutes = start.getUTCMinutes();
-  const minutesFromStart = (startHour - slotHours[0]) * 60 + startMinutes;
-  return Math.max(0, (minutesFromStart / 60) * slotHeight);
-}
-
-function getInterviewHeight(interview: Interview) {
-  const start = new Date(interview.startTime).getTime();
-  const end = new Date(interview.endTime).getTime();
-  const durationMinutes = Math.max(30, (end - start) / (1000 * 60));
-  return (durationMinutes / 60) * slotHeight;
 }

@@ -24,23 +24,26 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getUser, pipelineStatuses } from "@/lib/data";
-import type { JobApplication, PipelineStatus } from "@/lib/models";
+import { pipelineStatuses } from "@/lib/constants";
+import type { JobApplication, PipelineStatus, User } from "@/lib/models";
 import { formatDate } from "@/lib/utils";
 
 type ApplicationTableProps = {
   data: JobApplication[];
+  users: User[];
   title?: string;
   showFilters?: boolean;
 };
 
 export function ApplicationTable({
   data,
+  users,
   title = "Application pipeline",
   showFilters = true
 }: ApplicationTableProps) {
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<PipelineStatus | "all">("all");
+  const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
 
   const filteredData = useMemo(() => {
     return statusFilter === "all"
@@ -109,12 +112,12 @@ export function ApplicationTable({
       {
         accessorKey: "callerId",
         header: "Caller assigned",
-        cell: ({ row }) => getUser(row.original.callerId)?.name
+        cell: ({ row }) => usersById.get(row.original.callerId)?.name
       },
       {
         accessorKey: "developerId",
         header: "Developer assigned",
-        cell: ({ row }) => getUser(row.original.developerId)?.name
+        cell: ({ row }) => usersById.get(row.original.developerId)?.name
       },
       {
         accessorKey: "releaseStatus",
@@ -140,7 +143,7 @@ export function ApplicationTable({
         )
       }
     ],
-    []
+    [usersById]
   );
 
   const table = useReactTable({

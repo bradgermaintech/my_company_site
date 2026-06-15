@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  bidder
+  caller
+  developer
+}
+
+enum PipelineStatus {
+  Bid
+  Response
+  Intro
+  Tech
+  Culture
+  Final
+  Offer
+  Rejected
+}
+
+enum ReleaseStatus {
+  not_ready
+  pending
+  approved
+  released
+}
+
+enum PaymentStatus {
+  unbilled
+  pending
+  approved
+  paid
+}
+
+enum InterviewStage {
+  Intro
+  Tech
+  Culture
+  Final
+}
+
+enum InterviewResult {
+  scheduled
+  passed
+  failed
+  reschedule
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  review
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum ReleasePaymentStatus {
+  pending
+  approved
+  paid
+}
+
+model User {
+  id                    String          @id @default(cuid())
+  name                  String          @default("Pipeline User")
+  email                 String          @unique
+  emailVerified         DateTime?
+  image                 String?
+  passwordHash          String?
+  role                  UserRole        @default(bidder)
+  avatar                String          @default("PO")
+  active                Boolean         @default(true)
+  accounts              Account[]
+  sessions              Session[]
+  bidderApplications    Application[]   @relation("ApplicationBidder")
+  callerApplications    Application[]   @relation("ApplicationCaller")
+  developerApplications Application[]   @relation("ApplicationDeveloper")
+  callerInterviews      Interview[]     @relation("InterviewCaller")
+  developerInterviews   Interview[]     @relation("InterviewDeveloper")
+  developerTasks        DeveloperTask[]
+  approvedReleases      Release[]       @relation("ReleaseApprover")
+  activities            Activity[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([role, active])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Application {
+  id             String         @id
+  date           DateTime
+  jobTitle       String
+  company        String
+  jdLink         String
+  bidderId       String
+  callerId       String
+  developerId    String
+  status         PipelineStatus
+  resumeVersion  String
+  releaseStatus  ReleaseStatus
+  paymentStatus  PaymentStatus
+  notes          String
+  createdAt      DateTime
+  updatedAt      DateTime
+  bidder         User           @relation("ApplicationBidder", fields: [bidderId], references: [id], onDelete: Restrict)
+  caller         User           @relation("ApplicationCaller", fields: [callerId], references: [id], onDelete: Restrict)
+  developer      User           @relation("ApplicationDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
+  interviews     Interview[]
+  resumeTailors  ResumeTailor[]
+  developerTasks DeveloperTask[]
+  releases       Release[]
+
+  @@index([bidderId, status])
+  @@index([callerId, status])
+  @@index([developerId, status])
+  @@index([status, updatedAt])
+  @@index([company])
+}
+
+model Interview {
+  id            String          @id
+  applicationId String
+  callerId      String
+  developerId   String
+  title         String
+  stage         InterviewStage
+  startTime     DateTime
+  endTime       DateTime
+  meetingLink   String
+  notes         String
+  result        InterviewResult
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  caller        User            @relation("InterviewCaller", fields: [callerId], references: [id], onDelete: Restrict)
+  developer     User            @relation("InterviewDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, startTime])
+  @@index([callerId, startTime])
+  @@index([developerId, startTime])
+}
+
+model ResumeTailor {
+  id              String      @id
+  applicationId   String
+  jdLink          String?
+  baseResumeText  String
+  jobDescription  String
+  tailoredSummary String
+  skillMatch      String
+  coverLetter     String
+  generatedAt     DateTime
+  application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, generatedAt])
+}
+
+model DeveloperTask {
+  id            String       @id
+  developerId   String
+  applicationId String
+  title         String
+  description   String
+  status        TaskStatus
+  priority      TaskPriority
+  dueDate       DateTime
+  developer     User         @relation(fields: [developerId], references: [id], onDelete: Restrict)
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([developerId, status])
+  @@index([applicationId, status])
+  @@index([dueDate])
+}
+
+model Release {
+  id            String               @id
+  applicationId String
+  amount        Int
+  status        ReleasePaymentStatus
+  approvedBy    String
+  paidAt        DateTime?
+  application   Application          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  approver      User                 @relation("ReleaseApprover", fields: [approvedBy], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, status])
+  @@index([approvedBy, status])
+}
+
+model Activity {
+  id        String   @id
+  userId    String
+  action    String
+  target    String
+  timestamp DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([timestamp])
+}

@@ -4,11 +4,25 @@ import { BidderAnalytics } from "@/components/dashboard/bidder-analytics";
 import { ResumeTailorPanel } from "@/components/resume-tailor-panel";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
-import { applications } from "@/lib/data";
+import type { JobApplication, ResumeTailor, User } from "@/lib/models";
 
-export function BidderDashboard() {
-  const bidderApplications = applications.filter(
-    (application) => application.bidderId === "user-bidder-1"
+type BidderDashboardProps = {
+  applications: JobApplication[];
+  resumeTailors: ResumeTailor[];
+  userId: string;
+  users: User[];
+};
+
+export function BidderDashboard({
+  applications,
+  resumeTailors,
+  userId,
+  users
+}: BidderDashboardProps) {
+  const bidderApplications = applications.filter((application) => application.bidderId === userId);
+  const bidderApplicationIds = new Set(bidderApplications.map((application) => application.id));
+  const bidderResumeTailors = resumeTailors.filter((tailor) =>
+    bidderApplicationIds.has(tailor.applicationId)
   );
   const responses = bidderApplications.filter(
     (application) => application.status !== "Bid" && application.status !== "Rejected"
@@ -27,9 +41,9 @@ export function BidderDashboard() {
       </section>
 
       <QuickFilters />
-      <ResumeTailorPanel />
+      <ResumeTailorPanel applications={bidderApplications} initialResumeTailors={bidderResumeTailors} />
       <BidderAnalytics applications={bidderApplications} />
-      <ApplicationTable data={bidderApplications} title="Bidding states" />
+      <ApplicationTable data={bidderApplications} users={users} title="Bidding states" />
     </div>
   );
 }
