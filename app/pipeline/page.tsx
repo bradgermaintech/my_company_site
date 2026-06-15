@@ -1,6 +1,6 @@
 import { BriefcaseBusiness, CalendarCheck, CreditCard, PackageCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { ApplicationTable } from "@/components/application-table";
+import { ApplicationCrudWorkbench } from "@/components/application-crud-workbench";
 import { PipelineChart } from "@/components/pipeline-chart";
 import { StatCard } from "@/components/stat-card";
 import { requireSession } from "@/lib/auth";
@@ -39,10 +39,10 @@ export default async function PipelinePage() {
         <StatCard title="Revenue pipeline" value={formatCurrency(revenuePipeline)} icon={CreditCard} tone="slate" />
       </section>
       <PipelineChart data={pipelineData} />
-      <ApplicationTable
-        data={snapshot.applications}
+      <ApplicationCrudWorkbench
+        currentUser={currentUser}
+        initialApplications={snapshot.applications}
         users={snapshot.users}
-        title="Shared agency application and job pipeline"
       />
     </AppShell>
   );

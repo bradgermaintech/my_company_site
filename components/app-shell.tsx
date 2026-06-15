@@ -36,15 +36,9 @@ export function AppShell({ role, active, title, currentUser, children }: AppShel
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="flex">
-        <Sidebar active={active} collapsed={collapsed} />
+        <Sidebar active={active} collapsed={collapsed} onToggle={toggleSidebar} />
         <div className="min-w-0 flex-1">
-          <Topbar
-            collapsed={collapsed}
-            currentUser={currentUser}
-            onToggleSidebar={toggleSidebar}
-            role={role}
-            title={title}
-          />
+          <Topbar currentUser={currentUser} role={role} title={title} />
           <main className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 p-4 lg:p-6">
             {children}
           </main>

@@ -1,19 +1,23 @@
+"use client";
+
 import Link from "next/link";
 import {
   BarChart3,
   BriefcaseBusiness,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   LayoutDashboard,
-  PanelLeftClose,
   Settings,
   UsersRound
 } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
+
 type SidebarProps = {
   active: string;
   collapsed: boolean;
+  onToggle: () => void;
 };
 
 type NavItem = {
@@ -24,58 +28,36 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    key: "dashboard"
-  },
-  {
-    label: "Pipeline",
-    href: "/pipeline",
-    icon: BriefcaseBusiness,
-    key: "pipeline"
-  },
-  {
-    label: "Interviews",
-    href: "/dashboard/caller",
-    icon: CalendarClock,
-    key: "interviews"
-  },
-  {
-    label: "Analytics",
-    href: "/dashboard/admin",
-    icon: BarChart3,
-    key: "analytics"
-  },
-  {
-    label: "Team",
-    href: "/dashboard/developer",
-    icon: UsersRound,
-    key: "team"
-  },
-  {
-    label: "Payments",
-    href: "/dashboard/admin",
-    icon: CreditCard,
-    key: "payments"
-  },
-  {
-    label: "Settings",
-    href: "/settings",
-    icon: Settings,
-    key: "settings"
-  }
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, key: "dashboard" },
+  { label: "Pipeline", href: "/pipeline", icon: BriefcaseBusiness, key: "pipeline" },
+  { label: "Interviews", href: "/interviews", icon: CalendarClock, key: "interviews" },
+  { label: "Analytics", href: "/analytics", icon: BarChart3, key: "analytics" },
+  { label: "Team", href: "/team", icon: UsersRound, key: "team" },
+  { label: "Payments", href: "/payments", icon: CreditCard, key: "payments" },
+  { label: "Settings", href: "/settings", icon: Settings, key: "settings" }
 ];
 
-export function Sidebar({ active, collapsed }: SidebarProps) {
+export function Sidebar({ active, collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "hidden min-h-screen shrink-0 border-r bg-white transition-[width] duration-300 ease-out lg:block",
+        "relative hidden min-h-screen shrink-0 border-r bg-white transition-[width] duration-300 ease-out lg:block",
         collapsed ? "w-[92px]" : "w-72"
       )}
     >
+      <button
+        type="button"
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        onClick={onToggle}
+        className="absolute right-0 top-1/2 z-20 flex size-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border bg-white shadow-lg transition-colors hover:bg-slate-50"
+      >
+        {collapsed ? (
+          <ChevronRight className="size-4 text-slate-700" aria-hidden="true" />
+        ) : (
+          <ChevronLeft className="size-4 text-slate-700" aria-hidden="true" />
+        )}
+      </button>
+
       <div className="sticky top-0 flex h-screen flex-col">
         <Link
           href="/"
@@ -100,6 +82,7 @@ export function Sidebar({ active, collapsed }: SidebarProps) {
         <nav className="flex flex-1 flex-col gap-1 px-4 py-5">
           {navItems.map((item) => {
             const Icon = item.icon;
+
             return (
               <Link
                 key={item.key}
@@ -127,23 +110,6 @@ export function Sidebar({ active, collapsed }: SidebarProps) {
         </nav>
 
         <div className={cn("border-t p-4", collapsed && "px-3")}>
-          <div className={cn("mb-4 rounded-lg border bg-slate-50", collapsed ? "p-2" : "p-4")}>
-            {collapsed ? (
-              <div className="flex justify-center">
-                <ThemeToggle compact />
-              </div>
-            ) : (
-              <>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Theme
-                </p>
-                <div className="mt-3">
-                  <ThemeToggle />
-                </div>
-              </>
-            )}
-          </div>
-
           <div
             className={cn(
               "rounded-lg bg-slate-50 transition-all duration-300 ease-out",
@@ -151,7 +117,9 @@ export function Sidebar({ active, collapsed }: SidebarProps) {
             )}
           >
             {collapsed ? (
-              <PanelLeftClose className="size-4 text-muted-foreground" aria-hidden="true" />
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                71%
+              </span>
             ) : (
               <>
                 <p className="text-sm font-semibold text-foreground">Agency health</p>
