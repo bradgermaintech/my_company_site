@@ -1,4 +1,4 @@
-import { Bell, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -7,46 +7,22 @@ import { roleLabels } from "@/lib/constants";
 import type { User, UserRole } from "@/lib/models";
 
 type TopbarProps = {
-  collapsed: boolean;
   currentUser: User | null;
-  onToggleSidebar: () => void;
   role: UserRole;
   title: string;
 };
 
-export function Topbar({
-  collapsed,
-  currentUser,
-  onToggleSidebar,
-  role,
-  title
-}: TopbarProps) {
+export function Topbar({ currentUser, role, title }: TopbarProps) {
   return (
     <header className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
       <div className="flex min-h-16 flex-col gap-3 px-4 py-3 lg:px-6 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex items-start gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label={collapsed ? "Open sidebar" : "Collapse sidebar"}
-            onClick={onToggleSidebar}
-            className="hidden lg:inline-flex"
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-4" aria-hidden="true" />
-            ) : (
-              <PanelLeftClose className="size-4" aria-hidden="true" />
-            )}
-          </Button>
-          <div>
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
-              {roleLabels[role]} workspace
-            </p>
-            <h1 className="text-xl font-bold tracking-normal text-foreground">
-              {title}
-            </h1>
-          </div>
+        <div>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">
+            {roleLabels[role]} workspace
+          </p>
+          <h1 className="text-xl font-bold tracking-normal text-foreground">
+            {title}
+          </h1>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">

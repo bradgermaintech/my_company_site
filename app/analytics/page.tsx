@@ -1,15 +1,16 @@
 import { AppShell } from "@/components/app-shell";
-import { CallerDashboard } from "@/components/dashboard/caller-dashboard";
-import { requireRole } from "@/lib/auth";
+import { AdminDashboard } from "@/components/dashboard/admin-dashboard";
+import { requireSession } from "@/lib/auth";
 import { getAgencySnapshot } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function CallerDashboardPage() {
+export default async function AnalyticsPage() {
   const [snapshot, session] = await Promise.all([
     getAgencySnapshot(),
-    requireRole("caller")
+    requireSession()
   ]);
+
   const currentUser = {
     id: session.user.id,
     name: session.user.name ?? "Pipeline User",
@@ -21,11 +22,13 @@ export default async function CallerDashboardPage() {
   };
 
   return (
-    <AppShell currentUser={currentUser} role="caller" active="dashboard" title="Interview calendar workstation">
-      <CallerDashboard
+    <AppShell currentUser={currentUser} role={session.user.role} active="analytics" title="Agency analytics and performance">
+      <AdminDashboard
+        activities={snapshot.activities}
         applications={snapshot.applications}
+        developerTasks={snapshot.developerTasks}
         interviews={snapshot.interviews}
-        userId={currentUser.id}
+        releases={snapshot.releases}
         users={snapshot.users}
       />
     </AppShell>
