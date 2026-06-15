@@ -17,6 +17,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
@@ -106,7 +107,7 @@ export default function LandingPage() {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/dashboard/admin">
+                <Link href="/dashboard">
                   <PlayCircle className="size-4" aria-hidden="true" />
                   View Dashboard
                 </Link>
@@ -143,6 +144,7 @@ function Header() {
           <a href="#pricing" className="hover:text-foreground">Pricing</a>
         </nav>
         <div className="flex items-center gap-2">
+          <ThemeToggle compact />
           <Button asChild variant="ghost">
             <Link href="/login">Login</Link>
           </Button>

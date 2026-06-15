@@ -28,10 +28,27 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { applications, developerTasks, getUsersByRole, pipelineStatuses, releases, users } from "@/lib/data";
+import { pipelineStatuses } from "@/lib/constants";
+import type { Activity, DeveloperTask, Interview, JobApplication, Release, User } from "@/lib/models";
 import { formatCurrency } from "@/lib/utils";
 
-export function AdminDashboard() {
+type AdminDashboardProps = {
+  applications: JobApplication[];
+  activities: Activity[];
+  developerTasks: DeveloperTask[];
+  interviews: Interview[];
+  releases: Release[];
+  users: User[];
+};
+
+export function AdminDashboard({
+  applications,
+  activities,
+  developerTasks,
+  interviews,
+  releases,
+  users
+}: AdminDashboardProps) {
   const pipelineData = pipelineStatuses.map((status) => ({
     name: status,
     value: applications.filter((application) => application.status === status).length
@@ -52,30 +69,41 @@ export function AdminDashboard() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <StatCard title="Total bids" value={applications.length.toString()} change="+14%" icon={BriefcaseBusiness} tone="blue" />
         <StatCard title="Response rate" value={`${responseRate}%`} change="+6%" icon={Percent} tone="teal" />
-        <StatCard title="Interviews" value="4" change="+3" icon={CalendarCheck} tone="amber" />
-        <StatCard title="Active developers" value={getUsersByRole("developer").length.toString()} icon={UsersRound} tone="slate" />
+        <StatCard title="Interviews" value={interviews.length.toString()} change="+3" icon={CalendarCheck} tone="amber" />
+        <StatCard
+          title="Active developers"
+          value={users.filter((user) => user.role === "developer" && user.active).length.toString()}
+          icon={UsersRound}
+          tone="slate"
+        />
         <StatCard title="Releases pending" value={releases.filter((release) => release.status === "pending").length.toString()} icon={PackageCheck} tone="amber" />
         <StatCard title="Approved payments" value={formatCurrency(approvedPayments)} icon={CreditCard} tone="teal" />
       </section>
 
-      <AdminFilters />
+      <AdminFilters applications={applications} users={users} />
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <PipelineChart data={pipelineData} />
-        <ActivityFeed />
+        <ActivityFeed activities={activities} users={users} />
       </section>
 
       <section className="grid gap-6 2xl:grid-cols-[1fr_0.9fr]">
-        <TeamPerformanceTable />
-        <ReleasePaymentTable />
+        <TeamPerformanceTable applications={applications} developerTasks={developerTasks} users={users} />
+        <ReleasePaymentTable applications={applications} releases={releases} users={users} />
       </section>
 
-      <ApplicationTable data={applications} title="Agency application pipeline" />
+      <ApplicationTable data={applications} users={users} title="Agency application pipeline" />
     </div>
   );
 }
 
-function AdminFilters() {
+function AdminFilters({
+  applications,
+  users
+}: {
+  applications: JobApplication[];
+  users: User[];
+}) {
   return (
     <Card>
       <CardHeader>
@@ -112,7 +140,15 @@ function AdminFilters() {
   );
 }
 
-function TeamPerformanceTable() {
+function TeamPerformanceTable({
+  applications,
+  developerTasks,
+  users
+}: {
+  applications: JobApplication[];
+  developerTasks: DeveloperTask[];
+  users: User[];
+}) {
   const rows = users
     .filter((user) => user.role !== "admin")
     .map((user) => {

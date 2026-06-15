@@ -1,9 +1,23 @@
 import { AppShell } from "@/components/app-shell";
 import { SettingsProfileForm } from "@/components/settings-profile-form";
+import { requireSession } from "@/lib/auth";
 
-export default function SettingsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const session = await requireSession();
+  const currentUser = {
+    id: session.user.id,
+    name: session.user.name ?? "Pipeline User",
+    email: session.user.email ?? "team@pipelineos.dev",
+    image: session.user.image ?? null,
+    role: session.user.role,
+    avatar: session.user.avatar,
+    active: true
+  };
+
   return (
-    <AppShell role="admin" active="settings" title="Settings and profile">
+    <AppShell currentUser={currentUser} role={session.user.role} active="settings" title="Settings and profile">
       <SettingsProfileForm />
     </AppShell>
   );

@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { applications, getUsersByRole } from "@/lib/data";
-import type { Interview, InterviewStage } from "@/lib/models";
+import type { JobApplication, User } from "@/lib/models";
 
 const interviewSchema = z.object({
   applicationId: z.string().min(1),
@@ -26,21 +25,26 @@ const interviewSchema = z.object({
 type InterviewForm = z.infer<typeof interviewSchema>;
 
 type InterviewModalProps = {
+  applications: JobApplication[];
+  callerId: string;
+  developers: User[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdd: (interview: Interview) => void;
+  onAdd: (values: InterviewForm) => Promise<void>;
 };
 
 export function InterviewModal({
+  applications,
+  callerId,
+  developers,
   open,
   onOpenChange,
   onAdd
 }: InterviewModalProps) {
-  const developers = getUsersByRole("developer");
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     reset
   } = useForm<InterviewForm>({
     resolver: zodResolver(interviewSchema),
@@ -60,20 +64,8 @@ export function InterviewModal({
     return null;
   }
 
-  function onSubmit(values: InterviewForm) {
-    onAdd({
-      id: `int-${Date.now()}`,
-      callerId: "user-caller-1",
-      developerId: values.developerId,
-      applicationId: values.applicationId,
-      title: values.title,
-      stage: values.stage as InterviewStage,
-      startTime: new Date(values.startTime).toISOString(),
-      endTime: new Date(values.endTime).toISOString(),
-      meetingLink: values.meetingLink,
-      notes: values.notes,
-      result: "scheduled"
-    });
+  async function onSubmit(values: InterviewForm) {
+    await onAdd(values);
     reset();
     onOpenChange(false);
   }
@@ -174,7 +166,9 @@ export function InterviewModal({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">Save interview</Button>
+            <Button type="submit" disabled={isSubmitting || !applications.length || !callerId}>
+              Save interview
+            </Button>
           </div>
         </form>
       </div>

@@ -1,10 +1,33 @@
 import { AppShell } from "@/components/app-shell";
 import { CallerDashboard } from "@/components/dashboard/caller-dashboard";
+import { requireRole } from "@/lib/auth";
+import { getAgencySnapshot } from "@/lib/server-data";
 
-export default function CallerDashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function CallerDashboardPage() {
+  const [snapshot, session] = await Promise.all([
+    getAgencySnapshot(),
+    requireRole("caller")
+  ]);
+  const currentUser = {
+    id: session.user.id,
+    name: session.user.name ?? "Pipeline User",
+    email: session.user.email ?? "team@pipelineos.dev",
+    image: session.user.image ?? null,
+    role: session.user.role,
+    avatar: session.user.avatar,
+    active: true
+  };
+
   return (
-    <AppShell role="caller" active="dashboard" title="Interview calendar workstation">
-      <CallerDashboard />
+    <AppShell currentUser={currentUser} role="caller" active="interviews" title="Interview calendar workstation">
+      <CallerDashboard
+        applications={snapshot.applications}
+        interviews={snapshot.interviews}
+        userId={currentUser.id}
+        users={snapshot.users}
+      />
     </AppShell>
   );
 }

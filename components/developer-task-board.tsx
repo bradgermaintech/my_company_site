@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, CalendarCheck, MessageSquareText } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { applications, developerTasks, getApplication } from "@/lib/data";
-import type { DeveloperTask, TaskStatus } from "@/lib/models";
+import type { DeveloperTask, JobApplication, TaskStatus } from "@/lib/models";
 import { formatDate } from "@/lib/utils";
 
 const columns: Array<{ status: TaskStatus; label: string }> = [
@@ -31,12 +30,25 @@ const nextStatus: Record<TaskStatus, TaskStatus> = {
   done: "done"
 };
 
-export function DeveloperTaskBoard({ developerId }: { developerId: string }) {
-  const [tasks, setTasks] = useState<DeveloperTask[]>(
-    developerTasks.filter((task) => task.developerId === developerId)
-  );
+type DeveloperTaskBoardProps = {
+  applications: JobApplication[];
+  developerId: string;
+  initialTasks: DeveloperTask[];
+};
+
+export function DeveloperTaskBoard({
+  applications,
+  developerId,
+  initialTasks
+}: DeveloperTaskBoardProps) {
+  const [tasks, setTasks] = useState<DeveloperTask[]>(initialTasks);
   const [statusUpdate, setStatusUpdate] = useState(
     "Frontend shell and interview context are on track. Next update after technical prep review."
+  );
+  const [isPending, startTransition] = useTransition();
+  const applicationsById = useMemo(
+    () => new Map(applications.map((application) => [application.id, application])),
+    [applications]
   );
 
   const completion = useMemo(() => {
@@ -50,11 +62,31 @@ export function DeveloperTaskBoard({ developerId }: { developerId: string }) {
   }, [tasks]);
 
   function moveTask(taskId: string) {
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === taskId ? { ...task, status: nextStatus[task.status] } : task
-      )
-    );
+    const currentTask = tasks.find((task) => task.id === taskId);
+    if (!currentTask) {
+      return;
+    }
+
+    const next = nextStatus[currentTask.status];
+
+    startTransition(async () => {
+      const response = await fetch(`/api/developer-tasks/${taskId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status: next })
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const updatedTask = (await response.json()) as DeveloperTask;
+      setTasks((current) =>
+        current.map((task) => (task.id === updatedTask.id ? updatedTask : task))
+      );
+    });
   }
 
   return (
@@ -110,7 +142,7 @@ export function DeveloperTaskBoard({ developerId }: { developerId: string }) {
                 {tasks
                   .filter((task) => task.status === column.status)
                   .map((task) => {
-                    const application = getApplication(task.applicationId) ?? applications[0];
+                    const application = applicationsById.get(task.applicationId) ?? applications[0];
 
                     return (
                       <div key={task.id} className="rounded-lg border bg-white p-3 shadow-line">
@@ -134,6 +166,7 @@ export function DeveloperTaskBoard({ developerId }: { developerId: string }) {
                             variant="outline"
                             size="sm"
                             className="mt-3 w-full"
+                            disabled={isPending}
                             onClick={() => moveTask(task.id)}
                           >
                             Move forward

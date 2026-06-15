@@ -1,8 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { activities, getUser } from "@/lib/data";
+import type { Activity, User } from "@/lib/models";
 import { formatDate } from "@/lib/utils";
 
-export function ActivityFeed() {
+type ActivityFeedProps = {
+  activities: Activity[];
+  users: User[];
+};
+
+export function ActivityFeed({ activities, users }: ActivityFeedProps) {
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
   return (
     <Card>
       <CardHeader>
@@ -10,7 +17,7 @@ export function ActivityFeed() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {activities.map((activity) => {
-          const user = getUser(activity.userId);
+          const user = usersById.get(activity.userId);
 
           return (
             <div key={activity.id} className="flex gap-3">

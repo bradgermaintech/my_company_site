@@ -9,14 +9,23 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
-import { applications, developerTasks, interviews } from "@/lib/data";
+import type { DeveloperTask, Interview, JobApplication } from "@/lib/models";
 import { formatDate } from "@/lib/utils";
 
-export function DeveloperDashboard() {
-  const developerId = "user-dev-1";
-  const assignedApplications = applications.filter(
-    (application) => application.developerId === developerId
-  );
+type DeveloperDashboardProps = {
+  applications: JobApplication[];
+  developerId: string;
+  developerTasks: DeveloperTask[];
+  interviews: Interview[];
+};
+
+export function DeveloperDashboard({
+  applications,
+  developerId,
+  developerTasks,
+  interviews
+}: DeveloperDashboardProps) {
+  const assignedApplications = applications.filter((application) => application.developerId === developerId);
   const assignedTasks = developerTasks.filter((task) => task.developerId === developerId);
   const reviewTasks = assignedTasks.filter((task) => task.status === "review").length;
   const doneTasks = assignedTasks.filter((task) => task.status === "done").length;
@@ -66,7 +75,11 @@ export function DeveloperDashboard() {
         </CardContent>
       </Card>
 
-      <DeveloperTaskBoard developerId={developerId} />
+      <DeveloperTaskBoard
+        applications={applications}
+        developerId={developerId}
+        initialTasks={assignedTasks}
+      />
     </div>
   );
 }
