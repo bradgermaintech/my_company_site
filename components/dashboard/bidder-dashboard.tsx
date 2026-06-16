@@ -4,10 +4,12 @@ import { BidderAnalytics } from "@/components/dashboard/bidder-analytics";
 import { ResumeTailorPanel } from "@/components/resume-tailor-panel";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
-import type { JobApplication, ResumeTailor, User } from "@/lib/models";
+import { calculateResponseRate, countApplicationsInLatestWeek } from "@/lib/dashboard-metrics";
+import type { Interview, JobApplication, ResumeTailor, User } from "@/lib/models";
 
 type BidderDashboardProps = {
   applications: JobApplication[];
+  interviews: Interview[];
   resumeTailors: ResumeTailor[];
   userId: string;
   users: User[];
@@ -15,6 +17,7 @@ type BidderDashboardProps = {
 
 export function BidderDashboard({
   applications,
+  interviews,
   resumeTailors,
   userId,
   users
@@ -24,20 +27,22 @@ export function BidderDashboard({
   const bidderResumeTailors = resumeTailors.filter((tailor) =>
     bidderApplicationIds.has(tailor.applicationId)
   );
-  const responses = bidderApplications.filter(
-    (application) => application.status !== "Bid" && application.status !== "Rejected"
-  ).length;
-  const interviews = bidderApplications.filter((application) =>
-    ["Intro", "Tech", "Culture", "Final", "Offer"].includes(application.status)
-  ).length;
+  const bidderInterviews = interviews.filter((interview) =>
+    bidderApplicationIds.has(interview.applicationId)
+  );
+  const responseRate = calculateResponseRate(bidderApplications);
+  const latestWeekBids = countApplicationsInLatestWeek(bidderApplications);
+  const uniqueResumeVersions = new Set(
+    bidderApplications.map((application) => application.resumeVersion)
+  ).size;
 
   return (
     <div className="flex flex-col gap-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Active bids" value={bidderApplications.length.toString()} change="+5 this week" icon={Send} tone="blue" />
-        <StatCard title="Response rate" value={`${Math.round((responses / bidderApplications.length) * 100)}%`} icon={Reply} tone="teal" />
-        <StatCard title="Interviews booked" value={interviews.toString()} icon={CalendarClock} tone="amber" />
-        <StatCard title="Resume versions" value="12" icon={FileText} tone="slate" />
+        <StatCard title="Active bids" value={bidderApplications.length.toString()} change={`${latestWeekBids} in latest week`} icon={Send} tone="blue" />
+        <StatCard title="Response rate" value={`${responseRate}%`} change={`${bidderInterviews.length} interview records`} icon={Reply} tone="teal" />
+        <StatCard title="Interviews booked" value={bidderInterviews.length.toString()} icon={CalendarClock} tone="amber" />
+        <StatCard title="Resume versions" value={uniqueResumeVersions.toString()} icon={FileText} tone="slate" />
       </section>
 
       <QuickFilters />

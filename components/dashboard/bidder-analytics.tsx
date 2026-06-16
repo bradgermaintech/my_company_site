@@ -19,32 +19,20 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { pipelineStatuses } from "@/lib/constants";
+import { buildConversionSeries, buildWeeklyBidderSeries } from "@/lib/dashboard-metrics";
 import type { JobApplication } from "@/lib/models";
 
 type BidderAnalyticsProps = {
   applications: JobApplication[];
 };
 
-const weeklyData = [
-  { week: "May 13", bids: 4, responses: 1 },
-  { week: "May 20", bids: 6, responses: 2 },
-  { week: "May 27", bids: 7, responses: 3 },
-  { week: "Jun 03", bids: 9, responses: 4 },
-  { week: "Jun 10", bids: 8, responses: 5 }
-];
-
-const conversionData = [
-  { label: "Response", value: 63 },
-  { label: "Interview", value: 48 },
-  { label: "Final", value: 24 },
-  { label: "Offer", value: 13 }
-];
-
 export function BidderAnalytics({ applications }: BidderAnalyticsProps) {
   const statusData = pipelineStatuses.map((status) => ({
     name: status,
     value: applications.filter((application) => application.status === status).length
   }));
+  const weeklyData = buildWeeklyBidderSeries(applications);
+  const conversionData = buildConversionSeries(applications);
 
   return (
     <div className="grid gap-6 xl:grid-cols-3">

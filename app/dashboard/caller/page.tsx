@@ -23,9 +23,10 @@ export default async function CallerDashboardPage() {
   return (
     <AppShell currentUser={currentUser} role="caller" active="dashboard" title="Interview calendar workstation">
       <CallerDashboard
+        activities={snapshot.activities}
         applications={snapshot.applications}
+        currentUser={currentUser}
         interviews={snapshot.interviews}
-        userId={currentUser.id}
         users={snapshot.users}
       />
     </AppShell>

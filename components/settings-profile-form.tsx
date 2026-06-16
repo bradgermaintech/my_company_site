@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { User } from "@/lib/models";
 
 const profileSchema = z.object({
   name: z.string().min(2),
@@ -31,24 +33,38 @@ const profileSchema = z.object({
 
 type ProfileForm = z.infer<typeof profileSchema>;
 
-export function SettingsProfileForm() {
+export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitSuccessful }
+    formState: { errors, isSubmitSuccessful },
+    reset
   } = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: "Maya Benton",
-      email: "maya@pipelineos.dev",
-      role: "admin",
+      name: currentUser.name,
+      email: currentUser.email,
+      role: currentUser.role,
       timezone: "America/Los_Angeles",
-      bio: "Agency operations lead focused on pipeline visibility, release approvals, and high-signal team performance.",
+      bio: `${currentUser.name} is working in the ${currentUser.role} lane and uses this workspace for pipeline visibility, interview coordination, and release follow-through.`,
       dailyDigest: true,
       releaseAlerts: true,
       interviewAlerts: true
     }
   });
+
+  useEffect(() => {
+    reset({
+      name: currentUser.name,
+      email: currentUser.email,
+      role: currentUser.role,
+      timezone: "America/Los_Angeles",
+      bio: `${currentUser.name} is working in the ${currentUser.role} lane and uses this workspace for pipeline visibility, interview coordination, and release follow-through.`,
+      dailyDigest: true,
+      releaseAlerts: true,
+      interviewAlerts: true
+    });
+  }, [currentUser, reset]);
 
   function onSubmit() {
     return Promise.resolve();

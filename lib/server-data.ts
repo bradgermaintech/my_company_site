@@ -63,11 +63,17 @@ function serializeInterview(interview: {
   meetingLink: string;
   notes: string;
   result: Interview["result"];
+  googleEventId: string | null;
+  googleEventUrl: string | null;
+  googleSyncStatus: string | null;
+  googleSyncError: string | null;
+  googleSyncedAt: Date | null;
 }): Interview {
   return {
     ...interview,
     startTime: interview.startTime.toISOString(),
-    endTime: interview.endTime.toISOString()
+    endTime: interview.endTime.toISOString(),
+    googleSyncedAt: interview.googleSyncedAt?.toISOString() ?? null
   };
 }
 
@@ -121,6 +127,7 @@ function serializeRelease(release: {
 function serializeActivity(activity: {
   id: string;
   userId: string;
+  interviewId: string | null;
   action: string;
   target: string;
   timestamp: Date;

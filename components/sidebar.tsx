@@ -10,14 +10,17 @@ import {
   CreditCard,
   LayoutDashboard,
   Settings,
+  Shield,
   UsersRound
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { UserRole } from "@/lib/models";
 
 type SidebarProps = {
   active: string;
   collapsed: boolean;
   onToggle: () => void;
+  role: UserRole;
 };
 
 type NavItem = {
@@ -37,7 +40,15 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings, key: "settings" }
 ];
 
-export function Sidebar({ active, collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
+  const items = role === "admin"
+    ? [
+        ...navItems.slice(0, 6),
+        { label: "Users", href: "/users", icon: Shield, key: "users" },
+        navItems[6]
+      ]
+    : navItems;
+
   return (
     <aside
       className={cn(
@@ -45,20 +56,20 @@ export function Sidebar({ active, collapsed, onToggle }: SidebarProps) {
         collapsed ? "w-[92px]" : "w-72"
       )}
     >
-      <button
-        type="button"
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        onClick={onToggle}
-        className="absolute right-0 top-1/2 z-20 flex size-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border bg-white shadow-lg transition-colors hover:bg-slate-50"
-      >
-        {collapsed ? (
-          <ChevronRight className="size-4 text-slate-700" aria-hidden="true" />
-        ) : (
-          <ChevronLeft className="size-4 text-slate-700" aria-hidden="true" />
-        )}
-      </button>
-
       <div className="sticky top-0 flex h-screen flex-col">
+        <button
+          type="button"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={onToggle}
+          className="absolute right-0 top-1/2 z-20 flex size-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border bg-white shadow-lg transition-colors hover:bg-slate-50"
+        >
+          {collapsed ? (
+            <ChevronRight className="size-4 text-slate-700" aria-hidden="true" />
+          ) : (
+            <ChevronLeft className="size-4 text-slate-700" aria-hidden="true" />
+          )}
+        </button>
+
         <Link
           href="/"
           className={cn(
@@ -80,7 +91,7 @@ export function Sidebar({ active, collapsed, onToggle }: SidebarProps) {
         </Link>
 
         <nav className="flex flex-1 flex-col gap-1 px-4 py-5">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
 
             return (

@@ -58,6 +58,11 @@ export type Interview = {
   meetingLink: string;
   notes: string;
   result: InterviewResult;
+  googleEventId?: string | null;
+  googleEventUrl?: string | null;
+  googleSyncStatus?: string | null;
+  googleSyncError?: string | null;
+  googleSyncedAt?: string | null;
 };
 
 export type ResumeTailor = {
@@ -94,6 +99,7 @@ export type Release = {
 export type Activity = {
   id: string;
   userId: string;
+  interviewId?: string | null;
   action: string;
   target: string;
   timestamp: string;

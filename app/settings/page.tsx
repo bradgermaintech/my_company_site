@@ -18,7 +18,7 @@ export default async function SettingsPage() {
 
   return (
     <AppShell currentUser={currentUser} role={session.user.role} active="settings" title="Settings and profile">
-      <SettingsProfileForm />
+      <SettingsProfileForm currentUser={currentUser} />
     </AppShell>
   );
 }

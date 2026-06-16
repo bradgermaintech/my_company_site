@@ -29,6 +29,11 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { pipelineStatuses } from "@/lib/constants";
+import {
+  calculateResponseRate,
+  countApplicationsInLatestWeek,
+  countInterviewsInLatestWeek
+} from "@/lib/dashboard-metrics";
 import type { Activity, DeveloperTask, Interview, JobApplication, Release, User } from "@/lib/models";
 import { formatCurrency } from "@/lib/utils";
 
@@ -54,11 +59,12 @@ export function AdminDashboard({
     value: applications.filter((application) => application.status === status).length
   }));
 
-  const responseRate = Math.round(
-    (applications.filter((application) => application.status !== "Bid" && application.status !== "Rejected").length /
-      applications.length) *
-      100
-  );
+  const responseRate = calculateResponseRate(applications);
+  const applicationsThisWeek = countApplicationsInLatestWeek(applications);
+  const interviewsThisWeek = countInterviewsInLatestWeek(interviews);
+  const respondedCount = applications.filter(
+    (application) => application.status !== "Bid" && application.status !== "Rejected"
+  ).length;
 
   const approvedPayments = releases
     .filter((release) => release.status === "approved" || release.status === "paid")
@@ -67,9 +73,9 @@ export function AdminDashboard({
   return (
     <div className="flex flex-col gap-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        <StatCard title="Total bids" value={applications.length.toString()} change="+14%" icon={BriefcaseBusiness} tone="blue" />
-        <StatCard title="Response rate" value={`${responseRate}%`} change="+6%" icon={Percent} tone="teal" />
-        <StatCard title="Interviews" value={interviews.length.toString()} change="+3" icon={CalendarCheck} tone="amber" />
+        <StatCard title="Total bids" value={applications.length.toString()} change={`${applicationsThisWeek} in latest week`} icon={BriefcaseBusiness} tone="blue" />
+        <StatCard title="Response rate" value={`${responseRate}%`} change={`${respondedCount} responded`} icon={Percent} tone="teal" />
+        <StatCard title="Interviews" value={interviews.length.toString()} change={`${interviewsThisWeek} in latest week`} icon={CalendarCheck} tone="amber" />
         <StatCard
           title="Active developers"
           value={users.filter((user) => user.role === "developer" && user.active).length.toString()}

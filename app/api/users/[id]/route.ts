@@ -1,0 +1,143 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getServerAuthSession } from "@/auth";
+import { prisma } from "@/lib/prisma";
+
+const updateUserSchema = z
+  .object({
+    name: z.string().min(2).max(80).optional(),
+    email: z.string().email().optional(),
+    role: z.enum(["admin", "bidder", "caller", "developer"]).optional(),
+    active: z.boolean().optional()
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Add at least one user field to update."
+  });
+
+function createAvatar(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "PO";
+}
+
+function serializeUser(user: {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+  role: "admin" | "bidder" | "caller" | "developer";
+  avatar: string;
+  active: boolean;
+}) {
+  return user;
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerAuthSession();
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Sign in to manage users." }, { status: 401 });
+  }
+
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Only admins can update users." }, { status: 403 });
+  }
+
+  const { id } = await context.params;
+  const parsed = updateUserSchema.safeParse(await request.json());
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid user update." },
+      { status: 400 }
+    );
+  }
+
+  const input = parsed.data;
+  const user = await prisma.user.findUnique({
+    where: { id }
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+
+  if (input.email && input.email !== user.email) {
+    const existing = await prisma.user.findUnique({
+      where: { email: input.email }
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "A user with that email already exists." },
+        { status: 409 }
+      );
+    }
+  }
+
+  if (session.user.id === user.id && input.active === false) {
+    return NextResponse.json(
+      { error: "You cannot deactivate your own admin account." },
+      { status: 400 }
+    );
+  }
+
+  const activeAdminCount = await prisma.user.count({
+    where: {
+      role: "admin",
+      active: true
+    }
+  });
+
+  const isRemovingLastActiveAdmin =
+    user.role === "admin" &&
+    user.active &&
+    activeAdminCount <= 1 &&
+    ((input.role && input.role !== "admin") || input.active === false);
+
+  if (isRemovingLastActiveAdmin) {
+    return NextResponse.json(
+      { error: "At least one active admin must remain in the workspace." },
+      { status: 400 }
+    );
+  }
+
+  const nextName = input.name ?? user.name;
+  const updated = await prisma.user.update({
+    where: { id },
+    data: {
+      name: nextName,
+      email: input.email,
+      role: input.role,
+      active: input.active,
+      avatar: input.name ? createAvatar(nextName) : undefined
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      role: true,
+      avatar: true,
+      active: true
+    }
+  });
+
+  await prisma.activity.create({
+    data: {
+      id: `act-${crypto.randomUUID()}`,
+      userId: session.user.id,
+      action: "Updated user",
+      target: `${updated.name} (${updated.role}${updated.active ? "" : ", inactive"})`,
+      timestamp: new Date()
+    }
+  });
+
+  return NextResponse.json(serializeUser(updated));
+}

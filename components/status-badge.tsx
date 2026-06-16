@@ -1,5 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import type {
+  InterviewResult,
+  InterviewStage,
   PaymentStatus,
   PipelineStatus,
   ReleasePaymentStatus,
@@ -11,6 +13,8 @@ import type {
 type StatusBadgeProps = {
   status:
     | PipelineStatus
+    | InterviewStage
+    | InterviewResult
     | ReleaseStatus
     | PaymentStatus
     | ReleasePaymentStatus
@@ -25,6 +29,10 @@ const statusMap: Record<string, "default" | "secondary" | "outline" | "success" 
   Tech: "warning",
   Culture: "secondary",
   Final: "info",
+  scheduled: "info",
+  passed: "success",
+  failed: "danger",
+  reschedule: "warning",
   Offer: "success",
   Rejected: "danger",
   "not-ready": "outline",
@@ -45,7 +53,8 @@ const statusMap: Record<string, "default" | "secondary" | "outline" | "success" 
 
 const labelMap: Record<string, string> = {
   "not-ready": "Not ready",
-  "in-progress": "In progress"
+  "in-progress": "In progress",
+  reschedule: "Reschedule"
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {

@@ -176,9 +176,15 @@ model Interview {
   meetingLink   String
   notes         String
   result        InterviewResult
+  googleEventId String?
+  googleEventUrl String?
+  googleSyncStatus String?
+  googleSyncError String?
+  googleSyncedAt DateTime?
   application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   caller        User            @relation("InterviewCaller", fields: [callerId], references: [id], onDelete: Restrict)
   developer     User            @relation("InterviewDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
+  activities    Activity[]
 
   @@index([applicationId, startTime])
   @@index([callerId, startTime])
@@ -234,11 +240,14 @@ model Release {
 model Activity {
   id        String   @id
   userId    String
+  interviewId String?
   action    String
   target    String
   timestamp DateTime
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interview Interview? @relation(fields: [interviewId], references: [id], onDelete: SetNull)
 
   @@index([userId, timestamp])
+  @@index([interviewId, timestamp])
   @@index([timestamp])
 }

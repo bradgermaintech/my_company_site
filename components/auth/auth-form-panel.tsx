@@ -116,15 +116,15 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
                 : "Set up your role and enter the agency workspace with a real account."}
             </CardDescription>
           </div>
-          <div className="rounded-full border border-white/10 bg-white/5 p-1">
+          <div className="grid min-w-[220px] grid-cols-2 rounded-xl border border-white/10 bg-slate-900/70 p-1">
             <button
               type="button"
               onClick={() => setMode("signin")}
               className={cn(
-                "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                "rounded-lg px-4 py-2 text-sm font-semibold transition-all",
                 mode === "signin"
-                  ? "bg-white text-slate-950"
-                  : "text-slate-300 hover:text-white"
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-300 hover:bg-white/5 hover:text-white"
               )}
             >
               Sign in
@@ -133,10 +133,10 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
               type="button"
               onClick={() => setMode("signup")}
               className={cn(
-                "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                "rounded-lg px-4 py-2 text-sm font-semibold transition-all",
                 mode === "signup"
-                  ? "bg-white text-slate-950"
-                  : "text-slate-300 hover:text-white"
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-300 hover:bg-white/5 hover:text-white"
               )}
             >
               Sign up

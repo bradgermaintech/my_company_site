@@ -1,14 +1,14 @@
+import { AdminUserManagement } from "@/components/admin-user-management";
 import { AppShell } from "@/components/app-shell";
-import { CallerDashboard } from "@/components/dashboard/caller-dashboard";
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { getAgencySnapshot } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function InterviewsPage() {
+export default async function UsersPage() {
   const [snapshot, session] = await Promise.all([
     getAgencySnapshot(),
-    requireSession()
+    requireRole("admin")
   ]);
 
   const currentUser = {
@@ -22,13 +22,12 @@ export default async function InterviewsPage() {
   };
 
   return (
-    <AppShell currentUser={currentUser} role={session.user.role} active="interviews" title="Interview calendar workstation">
-      <CallerDashboard
-        activities={snapshot.activities}
+    <AppShell currentUser={currentUser} role="admin" active="users" title="User management">
+      <AdminUserManagement
         applications={snapshot.applications}
-        currentUser={currentUser}
+        currentUserId={currentUser.id}
+        initialUsers={snapshot.users}
         interviews={snapshot.interviews}
-        users={snapshot.users}
       />
     </AppShell>
   );
