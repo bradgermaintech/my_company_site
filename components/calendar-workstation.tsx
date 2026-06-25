@@ -10,7 +10,8 @@ import {
   GripVertical,
   Pencil,
   Trash2,
-  Video
+  Video,
+  X
 } from "lucide-react";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { InterviewModal } from "@/components/interview-modal";
@@ -245,7 +246,8 @@ export function CalendarWorkstation({
   const [items, setItems] = useState<Interview[]>(initialInterviews);
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedInterviewId, setSelectedInterviewId] = useState(initialInterviews[0]?.id ?? "");
+  const [selectedInterviewId, setSelectedInterviewId] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedback, setFeedback] = useState<string>("");
   const [resultNotes, setResultNotes] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -319,7 +321,8 @@ export function CalendarWorkstation({
 
   useEffect(() => {
     if (!items.some((item) => item.id === selectedInterviewId)) {
-      setSelectedInterviewId(items[0]?.id ?? "");
+      setSelectedInterviewId("");
+      setDrawerOpen(false);
     }
   }, [items, selectedInterviewId]);
 
@@ -388,16 +391,6 @@ export function CalendarWorkstation({
     setResultNotes(selectedInterview?.notes ?? "");
   }, [selectedInterview?.id, selectedInterview?.notes]);
 
-  const passedCount = items.filter((interview) => interview.result === "passed").length;
-  const showRate = items.length
-    ? Math.round(
-        ((items.length - items.filter((interview) => interview.result === "reschedule").length) /
-          items.length) *
-          100
-      )
-    : 0;
-  const passRate = items.length ? Math.round((passedCount / items.length) * 100) : 0;
-
   async function saveInterview(values: InterviewInput) {
     const endpoint = editingInterview ? `/api/interviews/${editingInterview.id}` : "/api/interviews";
     const method = editingInterview ? "PATCH" : "POST";
@@ -423,8 +416,20 @@ export function CalendarWorkstation({
       setActivities((current) => [payload.activity as Activity, ...current]);
     }
     setSelectedInterviewId(interview.id);
+    setDrawerOpen(true);
     setFeedback(editingInterview ? "Interview updated." : "Interview scheduled.");
     setEditingInterview(null);
+  }
+
+  function handleSelectInterview(interviewId: string) {
+    setSelectedInterviewId(interviewId);
+    setDrawerOpen(true);
+    setFeedback("");
+  }
+
+  function handleCloseDrawer() {
+    setDrawerOpen(false);
+    setFeedback("");
   }
 
   function handleOpenCreate() {
@@ -475,6 +480,7 @@ export function CalendarWorkstation({
           setActivities((current) => [payload.activity as Activity, ...current]);
         }
         setSelectedInterviewId(interview.id);
+        setDrawerOpen(true);
         setFeedback(`Interview marked as ${result}.`);
       })();
     });
@@ -502,6 +508,8 @@ export function CalendarWorkstation({
         setActivities((current) =>
           current.filter((activity) => activity.interviewId !== selectedInterview.id)
         );
+        setSelectedInterviewId("");
+        setDrawerOpen(false);
         setFeedback(
           payload.warning
             ? `Interview deleted. ${payload.warning}`
@@ -541,7 +549,7 @@ export function CalendarWorkstation({
           </div>
         </CardHeader>
 
-        <CardContent className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+        <CardContent className="relative overflow-hidden">
           <div className="min-w-0 rounded-xl border bg-card p-3 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -599,7 +607,7 @@ export function CalendarWorkstation({
                 applications={applications}
                 days={monthDays}
                 interviews={items}
-                onSelectInterview={setSelectedInterviewId}
+                onSelectInterview={handleSelectInterview}
                 selectedInterviewId={selectedInterviewId}
               />
             ) : (
@@ -608,7 +616,7 @@ export function CalendarWorkstation({
                 interviews={items}
                 compact={view === "day"}
                 onSelectDay={setSelectedDayKey}
-                onSelectInterview={setSelectedInterviewId}
+                onSelectInterview={handleSelectInterview}
                 selectedDayKey={selectedDay?.key}
                 selectedInterviewId={selectedInterviewId}
                 weekDays={weekDays}
@@ -616,18 +624,46 @@ export function CalendarWorkstation({
             )}
           </div>
 
-          <div className="min-w-0 flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-3">
-              <PerformanceMetric label="Interviews booked" value={items.length.toString()} />
-              <PerformanceMetric label="Show rate" value={`${showRate}%`} />
-              <PerformanceMetric label="Pass rate" value={`${passRate}%`} />
-              <PerformanceMetric
-                label="Follow-ups"
-                value={items.filter((interview) => interview.result === "reschedule").length.toString()}
-              />
-            </div>
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-0 z-20 transition-opacity duration-300",
+              drawerOpen ? "opacity-100" : "opacity-0"
+            )}
+            aria-hidden={!drawerOpen}
+          >
+            <button
+              type="button"
+              aria-label="Close interview details"
+              className={cn(
+                "absolute inset-0 bg-slate-950/30 transition-opacity duration-300 xl:bg-slate-950/16",
+                drawerOpen ? "opacity-100" : "opacity-0"
+              )}
+              onClick={handleCloseDrawer}
+            />
 
-            <div className="min-w-0 rounded-xl border bg-card p-4 shadow-sm">
+            <aside
+              className={cn(
+                "pointer-events-auto absolute inset-y-0 right-0 flex h-full w-full max-w-[92vw] flex-col border-l bg-background/98 shadow-2xl backdrop-blur transition-transform duration-300 ease-out sm:max-w-[30rem] lg:max-w-[34rem] xl:max-w-[38rem]",
+                drawerOpen ? "translate-x-0" : "translate-x-full"
+              )}
+            >
+              <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Interview details
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold">Schedule focus</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Review upcoming interviews and inspect the selected meeting without leaving the calendar.
+                  </p>
+                </div>
+                <Button type="button" variant="ghost" size="icon" onClick={handleCloseDrawer}>
+                  <X className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                <div className="min-w-0 rounded-xl border bg-card p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold">Upcoming interviews</h3>
@@ -647,12 +683,12 @@ export function CalendarWorkstation({
                     <button
                       key={interview.id}
                       type="button"
-                      onClick={() => setSelectedInterviewId(interview.id)}
+                      onClick={() => handleSelectInterview(interview.id)}
                       className={cn(
-                        "rounded-xl border p-3 text-left transition-colors",
+                        "rounded-xl border p-3 text-left transition-all duration-200",
                         interview.id === selectedInterviewId
-                          ? "border-primary bg-primary/5"
-                          : "bg-slate-50/80 hover:bg-muted/40 dark:bg-card/70"
+                          ? "translate-x-1 border-primary bg-primary/8 shadow-sm"
+                          : "bg-slate-50/80 hover:border-primary/30 hover:bg-muted/40 dark:bg-card/70"
                       )}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -678,14 +714,19 @@ export function CalendarWorkstation({
                   </div>
                 ) : null}
               </div>
-            </div>
+                </div>
 
-            <div className="min-w-0 rounded-xl border bg-card p-4 shadow-sm">
+                <div
+                  className={cn(
+                    "mt-4 min-w-0 rounded-xl border bg-card p-4 shadow-sm transition-all duration-300",
+                    selectedInterview ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.985] opacity-90"
+                  )}
+                >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold">Interview detail</h3>
                   <p className="text-xs text-muted-foreground">
-                    Role-based actions appear here.
+                    The selected meeting opens here, similar to a calendar side panel.
                   </p>
                 </div>
                 <HelpTooltip content="Admins can manage all interviews. Callers manage schedules for their interviews. Developers can update interview results for their assigned interviews. Bidders can review only." />
@@ -699,15 +740,22 @@ export function CalendarWorkstation({
 
               {selectedInterview && selectedApplication ? (
                 <div className="mt-4 grid gap-4">
-                  <div className="space-y-2">
+                  <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-lg font-semibold">{selectedInterview.title}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {selectedApplication.company} - {selectedApplication.jobTitle}
+                        </p>
+                      </div>
+                      <p className="rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-semibold text-primary">
+                        {formatTimeLabel(selectedInterview.startTime)}
+                      </p>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold">{selectedInterview.title}</p>
                       <StatusBadge status={selectedInterview.stage} />
                       <StatusBadge status={selectedInterview.result} />
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedApplication.company} - {selectedApplication.jobTitle}
-                    </p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -850,11 +898,13 @@ export function CalendarWorkstation({
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                  Choose an interview from the calendar or upcoming list to inspect it here.
+                <div className="mt-4 rounded-xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
+                  Select a meeting from the calendar or from the upcoming list to open its detail panel here.
                 </div>
               )}
-            </div>
+                </div>
+              </div>
+            </aside>
           </div>
         </CardContent>
       </Card>
@@ -957,32 +1007,7 @@ function WeekGrid({
 
   return (
     <div className="overflow-hidden rounded-xl border bg-white/90 shadow-sm dark:bg-card/90">
-      {!compact ? (
-        <div className="grid grid-cols-7 border-b bg-slate-50 dark:bg-slate-900/40">
-          {weekDays.map((day) => {
-            const active = day.key === selectedDayKey;
-
-            return (
-              <button
-                key={day.key}
-                type="button"
-                onClick={() => onSelectDay(day.key)}
-                className={cn(
-                  "flex min-h-[68px] flex-col items-start gap-1 border-r px-4 py-3 text-left transition-colors last:border-r-0",
-                  active && "bg-primary/10"
-                )}
-              >
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  {day.label}
-                </span>
-                <span className="text-lg font-semibold">
-                  {formatDateLabel(day.date, { day: "numeric" })}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ) : (
+      {compact ? (
         <div className="border-b bg-slate-50 px-4 py-3 dark:bg-slate-900/40">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {visibleDays[0]?.label}
@@ -993,7 +1018,7 @@ function WeekGrid({
               : ""}
           </p>
         </div>
-      )}
+      ) : null}
 
       <div className="overflow-x-auto">
         <div
@@ -1025,14 +1050,21 @@ function WeekGrid({
 
             return (
               <div key={day.key} className="relative border-r last:border-r-0">
-                <div className="sticky top-0 z-10 flex h-14 items-center border-b bg-white/95 px-3 backdrop-blur dark:bg-card/95">
+                <button
+                  type="button"
+                  onClick={() => onSelectDay(day.key)}
+                  className={cn(
+                    "sticky top-0 z-10 flex h-16 w-full items-center border-b bg-white/95 px-4 text-left backdrop-blur transition-colors dark:bg-card/95",
+                    day.key === selectedDayKey && "bg-primary/8"
+                  )}
+                >
                   <div>
                     <p className="text-sm font-semibold">{day.shortLabel}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatDateLabel(day.date, { month: "short", day: "numeric" })}
                     </p>
                   </div>
-                </div>
+                </button>
 
                 <div className="relative bg-white dark:bg-card" style={{ height: `${gridHeight}px` }}>
                   {slotHours.map((hour) => (
@@ -1084,11 +1116,17 @@ function CalendarCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        "rounded-md p-0 text-left shadow-sm transition-colors",
-        selected ? "ring-2 ring-primary" : ""
+        "rounded-md p-0 text-left shadow-sm transition-all duration-200",
+        selected ? "scale-[1.01] ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
       )}
     >
-      <div className="cursor-pointer rounded-md border-l-4 border-l-primary bg-blue-50/70 p-2 dark:bg-primary/10">
+      <div
+        className={cn(
+          "cursor-pointer rounded-md border-l-4 border-l-primary bg-blue-50/70 p-2 dark:bg-primary/10",
+          selected &&
+            "bg-primary/10 shadow-[0_0_0_1px_rgba(99,102,241,0.22),0_10px_30px_rgba(59,130,246,0.18)] dark:bg-primary/18"
+        )}
+      >
         <div className="flex items-start gap-1">
           <GripVertical className="mt-0.5 size-3.5 shrink-0 text-blue-500" aria-hidden="true" />
           <div className="min-w-0">
@@ -1131,9 +1169,11 @@ function TimedCalendarCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        "absolute overflow-hidden rounded-xl border p-0 text-left shadow-sm backdrop-blur-sm transition-transform hover:z-20 hover:scale-[1.01]",
+        "absolute overflow-hidden rounded-xl border p-0 text-left shadow-sm backdrop-blur-sm transition-all duration-200 hover:z-20 hover:scale-[1.01]",
         stageTone[interview.stage],
-        selected ? "ring-2 ring-primary" : ""
+        selected
+          ? "z-30 scale-[1.015] ring-2 ring-primary ring-offset-2 ring-offset-background shadow-[0_0_0_1px_rgba(99,102,241,0.25),0_18px_42px_rgba(15,23,42,0.22)]"
+          : "hover:shadow-lg"
       )}
       style={{
         top: `${offset}px`,
@@ -1142,10 +1182,28 @@ function TimedCalendarCard({
         width: `calc(${width}% - 12px)`
       }}
     >
-      <div className="flex items-start gap-2 p-2">
-        <GripVertical className="mt-0.5 size-3.5 shrink-0 opacity-70" aria-hidden="true" />
+      <div
+        className={cn(
+          "flex h-full items-start gap-2 p-2",
+          selected && "bg-white/30 dark:bg-white/5"
+        )}
+      >
+        <GripVertical
+          className={cn(
+            "mt-0.5 size-3.5 shrink-0 opacity-70",
+            selected && "text-primary opacity-100"
+          )}
+          aria-hidden="true"
+        />
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold">{application.company}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="truncate text-xs font-semibold">{application.company}</p>
+            {selected ? (
+              <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary shadow-sm dark:bg-slate-950/70">
+                Selected
+              </span>
+            ) : null}
+          </div>
           <p className="truncate text-[11px] opacity-80">
             {interview.stage} | {application.jobTitle}
           </p>
@@ -1155,15 +1213,6 @@ function TimedCalendarCard({
         </div>
       </div>
     </button>
-  );
-}
-
-function PerformanceMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border bg-card p-3 shadow-sm">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-bold">{value}</p>
-    </div>
   );
 }
 
