@@ -29,14 +29,13 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { pipelineStatuses } from "@/lib/constants";
-<<<<<<< HEAD
+ 
 import {
   calculateResponseRate,
   countApplicationsInLatestWeek,
   countInterviewsInLatestWeek
 } from "@/lib/dashboard-metrics";
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+ 
 import type { Activity, DeveloperTask, Interview, JobApplication, Release, User } from "@/lib/models";
 import { formatCurrency } from "@/lib/utils";
 
@@ -76,15 +75,10 @@ export function AdminDashboard({
   return (
     <div className="flex flex-col gap-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-<<<<<<< HEAD
+ 
         <StatCard title="Total bids" value={applications.length.toString()} change={`${applicationsThisWeek} in latest week`} icon={BriefcaseBusiness} tone="blue" />
         <StatCard title="Response rate" value={`${responseRate}%`} change={`${respondedCount} responded`} icon={Percent} tone="teal" />
         <StatCard title="Interviews" value={interviews.length.toString()} change={`${interviewsThisWeek} in latest week`} icon={CalendarCheck} tone="amber" />
-=======
-        <StatCard title="Total bids" value={applications.length.toString()} change="+14%" icon={BriefcaseBusiness} tone="blue" />
-        <StatCard title="Response rate" value={`${responseRate}%`} change="+6%" icon={Percent} tone="teal" />
-        <StatCard title="Interviews" value={interviews.length.toString()} change="+3" icon={CalendarCheck} tone="amber" />
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
         <StatCard
           title="Active developers"
           value={users.filter((user) => user.role === "developer" && user.active).length.toString()}

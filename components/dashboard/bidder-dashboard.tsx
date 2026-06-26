@@ -4,19 +4,13 @@ import { BidderAnalytics } from "@/components/dashboard/bidder-analytics";
 import { ResumeTailorPanel } from "@/components/resume-tailor-panel";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
-<<<<<<< HEAD
+ 
 import { calculateResponseRate, countApplicationsInLatestWeek } from "@/lib/dashboard-metrics";
 import type { Interview, JobApplication, ResumeTailor, User } from "@/lib/models";
 
 type BidderDashboardProps = {
   applications: JobApplication[];
   interviews: Interview[];
-=======
-import type { JobApplication, ResumeTailor, User } from "@/lib/models";
-
-type BidderDashboardProps = {
-  applications: JobApplication[];
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   resumeTailors: ResumeTailor[];
   userId: string;
   users: User[];
@@ -24,10 +18,9 @@ type BidderDashboardProps = {
 
 export function BidderDashboard({
   applications,
-<<<<<<< HEAD
+ 
   interviews,
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+ 
   resumeTailors,
   userId,
   users
@@ -36,12 +29,11 @@ export function BidderDashboard({
   const bidderApplicationIds = new Set(bidderApplications.map((application) => application.id));
   const bidderResumeTailors = resumeTailors.filter((tailor) =>
     bidderApplicationIds.has(tailor.applicationId)
-<<<<<<< HEAD
+ 
   );
   const bidderInterviews = interviews.filter((interview) =>
     bidderApplicationIds.has(interview.applicationId)
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+ 
   );
   const responseRate = calculateResponseRate(bidderApplications);
   const latestWeekBids = countApplicationsInLatestWeek(bidderApplications);

@@ -17,10 +17,9 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
-<<<<<<< HEAD
+ 
 import { HelpTooltip } from "@/components/help-tooltip";
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+ 
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -452,7 +451,7 @@ export function ApplicationCrudWorkbench({
                   className="pl-9"
                   placeholder="Search title, company, notes, resume"
                 />
-<<<<<<< HEAD
+ 
                 <p className="mt-2 text-xs text-muted-foreground">
                   Search across the key application fields when you need to find one record quickly.
                 </p>
@@ -491,31 +490,6 @@ export function ApplicationCrudWorkbench({
                   <option value="mine">My records</option>
                 </Select>
               </div>
-=======
-              </div>
-              <Select
-                aria-label="Status filter"
-                value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as (typeof pipelineStatusOptions)[number] | "all")
-                }
-              >
-                <option value="all">All stages</option>
-                {pipelineStatusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                aria-label="Scope filter"
-                value={scopeFilter}
-                onChange={(event) => setScopeFilter(event.target.value as "all" | "mine")}
-              >
-                <option value="all">All records</option>
-                <option value="mine">My records</option>
-              </Select>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
             </div>
           </CardHeader>
 
@@ -843,7 +817,7 @@ function ApplicationFormSheet({
           >
             <div className="grid flex-1 gap-6 px-6 py-6">
               <div className="grid gap-4 md:grid-cols-2">
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Application date"
                   helpText="The calendar date when this application was submitted."
@@ -858,18 +832,12 @@ function ApplicationFormSheet({
                   description="Examples: v1.0, React-v3, PM-tailored-v2."
                   error={form.formState.errors.resumeVersion?.message}
                 >
-=======
-                <FieldWrapper label="Application date" error={form.formState.errors.date?.message}>
-                  <Input type="date" {...form.register("date")} />
-                </FieldWrapper>
-                <FieldWrapper label="Resume version" error={form.formState.errors.resumeVersion?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Input placeholder="v2.3" {...form.register("resumeVersion")} />
                 </FieldWrapper>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Job title"
                   helpText="The role name exactly or nearly exactly as shown on the job post."
@@ -884,40 +852,28 @@ function ApplicationFormSheet({
                   description="Use one consistent company name so duplicates are easier to spot."
                   error={form.formState.errors.company?.message}
                 >
-=======
-                <FieldWrapper label="Job title" error={form.formState.errors.jobTitle?.message}>
-                  <Input placeholder="Senior Full Stack Engineer" {...form.register("jobTitle")} />
-                </FieldWrapper>
-                <FieldWrapper label="Company" error={form.formState.errors.company?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Input placeholder="Northstar Labs" {...form.register("company")} />
                 </FieldWrapper>
               </div>
 
-<<<<<<< HEAD
+ 
               <FieldWrapper
                 label="Job description URL"
                 helpText="Paste the original role link so the team can reopen the posting later."
                 description="This is used from the detail panel and during interview preparation."
                 error={form.formState.errors.jdLink?.message}
               >
-=======
-              <FieldWrapper label="Job description URL" error={form.formState.errors.jdLink?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                 <Input placeholder="https://company.com/jobs/role" {...form.register("jdLink")} />
               </FieldWrapper>
 
               <div className="grid gap-4 md:grid-cols-3">
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Bidder owner"
                   helpText="The person responsible for submitting and maintaining the application."
                   description="Bidder accounts stay locked to their own ownership."
                   error={form.formState.errors.bidderId?.message}
                 >
-=======
-                <FieldWrapper label="Bidder owner" error={form.formState.errors.bidderId?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Select
                     {...form.register("bidderId")}
                     disabled={currentUser.role === "bidder"}
@@ -929,16 +885,13 @@ function ApplicationFormSheet({
                     ))}
                   </Select>
                 </FieldWrapper>
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Caller owner"
                   helpText="The person who manages interview communication and scheduling."
                   description="This is the teammate who typically works most from the calendar view."
                   error={form.formState.errors.callerId?.message}
                 >
-=======
-                <FieldWrapper label="Caller owner" error={form.formState.errors.callerId?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Select {...form.register("callerId")}>
                     {callers.map((user) => (
                       <option key={user.id} value={user.id}>
@@ -947,16 +900,13 @@ function ApplicationFormSheet({
                     ))}
                   </Select>
                 </FieldWrapper>
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Developer owner"
                   helpText="The person attached to the technical execution side of the opportunity."
                   description="This helps delivery and task tracking stay attached to the right record."
                   error={form.formState.errors.developerId?.message}
                 >
-=======
-                <FieldWrapper label="Developer owner" error={form.formState.errors.developerId?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Select {...form.register("developerId")}>
                     {developers.map((user) => (
                       <option key={user.id} value={user.id}>
@@ -968,16 +918,13 @@ function ApplicationFormSheet({
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Pipeline stage"
                   helpText="Move this forward as the company engages: Bid, Response, interview rounds, then Offer or Rejected."
                   description="This is the main workflow status used across the platform."
                   error={form.formState.errors.status?.message}
                 >
-=======
-                <FieldWrapper label="Pipeline stage" error={form.formState.errors.status?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Select {...form.register("status")}>
                     {pipelineStatusOptions.map((status) => (
                       <option key={status} value={status}>
@@ -986,16 +933,13 @@ function ApplicationFormSheet({
                     ))}
                   </Select>
                 </FieldWrapper>
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Release state"
                   helpText="Use this to track whether downstream delivery or release work is ready to move."
                   description="Not ready means the record is still early or missing delivery clarity."
                   error={form.formState.errors.releaseStatus?.message}
                 >
-=======
-                <FieldWrapper label="Release state" error={form.formState.errors.releaseStatus?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Select {...form.register("releaseStatus")}>
                     {releaseStatusOptions.map((status) => (
                       <option key={status} value={status}>
@@ -1004,16 +948,13 @@ function ApplicationFormSheet({
                     ))}
                   </Select>
                 </FieldWrapper>
-<<<<<<< HEAD
+ 
                 <FieldWrapper
                   label="Payment state"
                   helpText="The finance progression for this opportunity after it starts maturing."
                   description="Typical flow: unbilled, pending, approved, paid."
                   error={form.formState.errors.paymentStatus?.message}
                 >
-=======
-                <FieldWrapper label="Payment state" error={form.formState.errors.paymentStatus?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   <Select {...form.register("paymentStatus")}>
                     {paymentStatusOptions.map((status) => (
                       <option key={status} value={status}>
@@ -1024,16 +965,13 @@ function ApplicationFormSheet({
                 </FieldWrapper>
               </div>
 
-<<<<<<< HEAD
+ 
               <FieldWrapper
                 label="Workflow notes"
                 helpText="Capture the latest context so the next teammate understands what happened without asking around."
                 description="Good notes include response details, interview signals, blockers, and next steps."
                 error={form.formState.errors.notes?.message}
               >
-=======
-              <FieldWrapper label="Workflow notes" error={form.formState.errors.notes?.message}>
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                 <Textarea
                   placeholder="Capture the current outreach, interview, or commercial context."
                   className="min-h-[160px]"
@@ -1098,7 +1036,7 @@ function DeleteApplicationDialog({
 
 function FieldWrapper({
   children,
-<<<<<<< HEAD
+ 
   description,
   error,
   helpText,
@@ -1108,28 +1046,17 @@ function FieldWrapper({
   description?: string;
   error?: string;
   helpText?: string;
-=======
-  error,
-  label
-}: {
-  children: React.ReactNode;
-  error?: string;
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   label: string;
 }) {
   return (
     <div className="grid gap-2">
-<<<<<<< HEAD
+ 
       <div className="flex items-center gap-2">
         <Label>{label}</Label>
         {helpText ? <HelpTooltip content={helpText} label={`${label} help`} /> : null}
       </div>
       {children}
       {description ? <p className="text-xs leading-5 text-muted-foreground">{description}</p> : null}
-=======
-      <Label>{label}</Label>
-      {children}
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
       {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
     </div>
   );

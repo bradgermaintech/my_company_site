@@ -63,24 +63,20 @@ function serializeInterview(interview: {
   meetingLink: string;
   notes: string;
   result: Interview["result"];
-<<<<<<< HEAD
+ 
   googleEventId: string | null;
   googleEventUrl: string | null;
   googleSyncStatus: string | null;
   googleSyncError: string | null;
   googleSyncedAt: Date | null;
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+ 
 }): Interview {
   return {
     ...interview,
     startTime: interview.startTime.toISOString(),
-<<<<<<< HEAD
+ 
     endTime: interview.endTime.toISOString(),
     googleSyncedAt: interview.googleSyncedAt?.toISOString() ?? null
-=======
-    endTime: interview.endTime.toISOString()
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   };
 }
 
@@ -134,10 +130,9 @@ function serializeRelease(release: {
 function serializeActivity(activity: {
   id: string;
   userId: string;
-<<<<<<< HEAD
+ 
   interviewId: string | null;
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+ 
   action: string;
   target: string;
   timestamp: Date;

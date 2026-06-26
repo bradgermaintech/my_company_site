@@ -24,10 +24,7 @@ export default async function BidderDashboardPage() {
     <AppShell currentUser={currentUser} role="bidder" active="dashboard" title="Bidding and resume workspace">
       <BidderDashboard
         applications={snapshot.applications}
-<<<<<<< HEAD
         interviews={snapshot.interviews}
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
         resumeTailors={snapshot.resumeTailors}
         userId={currentUser.id}
         users={snapshot.users}

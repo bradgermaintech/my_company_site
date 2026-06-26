@@ -176,7 +176,7 @@ model Interview {
   meetingLink   String
   notes         String
   result        InterviewResult
-<<<<<<< HEAD
+ 
   googleEventId String?
   googleEventUrl String?
   googleSyncStatus String?
@@ -186,11 +186,6 @@ model Interview {
   caller        User            @relation("InterviewCaller", fields: [callerId], references: [id], onDelete: Restrict)
   developer     User            @relation("InterviewDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
   activities    Activity[]
-=======
-  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  caller        User            @relation("InterviewCaller", fields: [callerId], references: [id], onDelete: Restrict)
-  developer     User            @relation("InterviewDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 
   @@index([applicationId, startTime])
   @@index([callerId, startTime])
@@ -246,22 +241,17 @@ model Release {
 model Activity {
   id        String   @id
   userId    String
-<<<<<<< HEAD
+ 
   interviewId String?
-=======
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+ 
   action    String
   target    String
   timestamp DateTime
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-<<<<<<< HEAD
+ 
   interview Interview? @relation(fields: [interviewId], references: [id], onDelete: SetNull)
 
   @@index([userId, timestamp])
   @@index([interviewId, timestamp])
-=======
-
-  @@index([userId, timestamp])
->>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   @@index([timestamp])
 }
