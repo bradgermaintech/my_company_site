@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+<<<<<<< HEAD
 import {
   interviewInputSchema,
   interviewStageOptions,
@@ -26,6 +27,30 @@ type InterviewModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (values: InterviewInput) => Promise<void>;
+=======
+import type { JobApplication, User } from "@/lib/models";
+
+const interviewSchema = z.object({
+  applicationId: z.string().min(1),
+  developerId: z.string().min(1),
+  title: z.string().min(4),
+  stage: z.enum(["Intro", "Tech", "Culture", "Final"]),
+  startTime: z.string().min(1),
+  endTime: z.string().min(1),
+  meetingLink: z.string().url(),
+  notes: z.string().min(8)
+});
+
+type InterviewForm = z.infer<typeof interviewSchema>;
+
+type InterviewModalProps = {
+  applications: JobApplication[];
+  callerId: string;
+  developers: User[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdd: (values: InterviewForm) => Promise<void>;
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 };
 
 function formatDatetimeLocal(value?: string) {
@@ -82,10 +107,15 @@ function isCallerLocked(role: UserRole) {
 
 export function InterviewModal({
   applications,
+<<<<<<< HEAD
   callers,
   currentUser,
   developers,
   interview,
+=======
+  callerId,
+  developers,
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   open,
   onOpenChange,
   onSave
@@ -108,8 +138,14 @@ export function InterviewModal({
     return null;
   }
 
+<<<<<<< HEAD
   async function onSubmit(values: InterviewInput) {
     await onSave(values);
+=======
+  async function onSubmit(values: InterviewForm) {
+    await onAdd(values);
+    reset();
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
     onOpenChange(false);
   }
 
@@ -252,6 +288,7 @@ export function InterviewModal({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
+<<<<<<< HEAD
             <Button
               type="submit"
               disabled={isSubmitting || !applications.length || !developers.length || !callers.length}
@@ -263,6 +300,10 @@ export function InterviewModal({
                 : isEditing
                   ? "Save changes"
                   : "Save interview"}
+=======
+            <Button type="submit" disabled={isSubmitting || !applications.length || !callerId}>
+              Save interview
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
             </Button>
           </div>
         </form>

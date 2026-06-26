@@ -19,6 +19,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   providers.push(
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
+<<<<<<< HEAD
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking: true,
       authorization: {
@@ -30,6 +31,9 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             "openid email profile https://www.googleapis.com/auth/calendar.events"
         }
       }
+=======
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
     })
   );
 }

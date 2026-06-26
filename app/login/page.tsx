@@ -3,7 +3,10 @@ import { ArrowRight, CalendarClock, CheckCircle2, Layers3, ShieldCheck } from "l
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/auth";
 import { AuthFormPanel } from "@/components/auth/auth-form-panel";
+<<<<<<< HEAD
 import { BrandLogo } from "@/components/brand-logo";
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getPrimaryDashboardRoute } from "@/lib/auth-routes";
 
@@ -42,7 +45,14 @@ export default async function LoginPage() {
         <header className="border-b border-white/10">
           <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-6 px-4 lg:px-8">
             <Link href="/" className="flex items-center gap-3">
+<<<<<<< HEAD
               <BrandLogo dark size="sm" />
+=======
+              <span className="flex size-9 items-center justify-center rounded-md bg-white text-sm font-bold text-slate-950">
+                PO
+              </span>
+              <span className="text-lg font-bold tracking-normal text-white">PipelineOS</span>
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
             </Link>
 
             <div className="flex items-center gap-2">
