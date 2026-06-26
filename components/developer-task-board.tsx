@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+<<<<<<< HEAD
 import { ArrowRight, CalendarCheck, GripVertical, MessageSquareText } from "lucide-react";
+=======
+import { ArrowRight, CalendarCheck, MessageSquareText } from "lucide-react";
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +18,11 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import type { DeveloperTask, JobApplication, TaskStatus } from "@/lib/models";
+<<<<<<< HEAD
 import { cn, formatDate } from "@/lib/utils";
+=======
+import { formatDate } from "@/lib/utils";
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 
 const columns: Array<{ status: TaskStatus; label: string }> = [
   { status: "todo", label: "Todo" },
@@ -45,8 +53,11 @@ export function DeveloperTaskBoard({
   const [statusUpdate, setStatusUpdate] = useState(
     "Frontend shell and interview context are on track. Next update after technical prep review."
   );
+<<<<<<< HEAD
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   const [isPending, startTransition] = useTransition();
   const applicationsById = useMemo(
     () => new Map(applications.map((application) => [application.id, application])),
@@ -92,12 +103,38 @@ export function DeveloperTaskBoard({
 
   function moveTask(taskId: string) {
     const currentTask = tasks.find((task) => task.id === taskId);
+<<<<<<< HEAD
 
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
     if (!currentTask) {
       return;
     }
 
+<<<<<<< HEAD
     updateTaskStatus(taskId, nextStatus[currentTask.status]);
+=======
+    const next = nextStatus[currentTask.status];
+
+    startTransition(async () => {
+      const response = await fetch(`/api/developer-tasks/${taskId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status: next })
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const updatedTask = (await response.json()) as DeveloperTask;
+      setTasks((current) =>
+        current.map((task) => (task.id === updatedTask.id ? updatedTask : task))
+      );
+    });
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   }
 
   return (

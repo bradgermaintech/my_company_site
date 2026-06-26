@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+<<<<<<< HEAD
 import { getServerAuthSession } from "@/auth";
 import { syncInterviewToGoogleCalendar } from "@/lib/google-calendar";
 import { canCreateInterview } from "@/lib/interview-permissions";
@@ -6,6 +7,24 @@ import { interviewInputSchema } from "@/lib/interview-schema";
 import { prisma } from "@/lib/prisma";
 import type { Interview } from "@/lib/models";
 
+=======
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import type { Interview } from "@/lib/models";
+
+const interviewSchema = z.object({
+  applicationId: z.string().min(1),
+  callerId: z.string().min(1),
+  developerId: z.string().min(1),
+  title: z.string().min(4),
+  stage: z.enum(["Intro", "Tech", "Culture", "Final"]),
+  startTime: z.string().min(1),
+  endTime: z.string().min(1),
+  meetingLink: z.string().url(),
+  notes: z.string().min(8)
+});
+
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 function serializeInterview(interview: {
   id: string;
   applicationId: string;
@@ -18,15 +37,19 @@ function serializeInterview(interview: {
   meetingLink: string;
   notes: string;
   result: Interview["result"];
+<<<<<<< HEAD
   googleEventId: string | null;
   googleEventUrl: string | null;
   googleSyncStatus: string | null;
   googleSyncError: string | null;
   googleSyncedAt: Date | null;
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 }): Interview {
   return {
     ...interview,
     startTime: interview.startTime.toISOString(),
+<<<<<<< HEAD
     endTime: interview.endTime.toISOString(),
     googleSyncedAt: interview.googleSyncedAt?.toISOString() ?? null
   };
@@ -144,6 +167,14 @@ export async function POST(request: Request) {
       email: true
     }
   });
+=======
+    endTime: interview.endTime.toISOString()
+  };
+}
+
+export async function POST(request: Request) {
+  const payload = interviewSchema.parse(await request.json());
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 
   const interview = await prisma.interview.create({
     data: {
@@ -157,6 +188,7 @@ export async function POST(request: Request) {
       endTime: new Date(payload.endTime),
       meetingLink: payload.meetingLink,
       notes: payload.notes,
+<<<<<<< HEAD
       result: "scheduled",
       googleSyncStatus: "pending"
     }
@@ -209,4 +241,11 @@ export async function POST(request: Request) {
     interview: serializeInterview(syncedInterview),
     activity: serializeActivity(activity)
   });
+=======
+      result: "scheduled"
+    }
+  });
+
+  return NextResponse.json(serializeInterview(interview));
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 }
