@@ -1,9 +1,14 @@
+<<<<<<< HEAD
 "use client";
 
 import { Bell, HelpCircle, Search, X } from "lucide-react";
 import { useState } from "react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { GettingStartedGuide } from "@/components/getting-started-guide";
+=======
+import { Bell, Search } from "lucide-react";
+import { SignOutButton } from "@/components/auth/sign-out-button";
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +22,11 @@ type TopbarProps = {
 };
 
 export function Topbar({ currentUser, role, title }: TopbarProps) {
+<<<<<<< HEAD
   const [helpOpen, setHelpOpen] = useState(false);
 
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   return (
     <>
       <header className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
@@ -31,6 +39,7 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
               {title}
             </h1>
           </div>
+<<<<<<< HEAD
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 lg:w-72">
@@ -87,6 +96,28 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
             </div>
             <div className="max-h-[calc(100vh-120px)] overflow-y-auto p-5">
               <GettingStartedGuide role={role} />
+=======
+          <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Access
+            </span>
+            <span className="text-sm font-semibold text-foreground">
+              {roleLabels[role]}
+            </span>
+          </div>
+          <ThemeToggle compact />
+          <Button variant="outline" size="icon" aria-label="Notifications">
+            <Bell className="size-4" aria-hidden="true" />
+          </Button>
+          <SignOutButton />
+          <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2">
+            <span className="flex size-8 items-center justify-center rounded-md bg-slate-100 text-xs font-bold text-slate-700">
+              {currentUser?.avatar ?? "PO"}
+            </span>
+            <div className="hidden min-w-0 md:block">
+              <p className="truncate text-sm font-semibold">{currentUser?.name ?? "Pipeline User"}</p>
+              <p className="truncate text-xs text-muted-foreground">{currentUser?.email ?? "team@pipelineos.dev"}</p>
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
             </div>
           </div>
         </div>

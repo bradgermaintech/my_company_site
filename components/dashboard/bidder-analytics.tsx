@@ -19,7 +19,10 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { pipelineStatuses } from "@/lib/constants";
+<<<<<<< HEAD
 import { buildConversionSeries, buildWeeklyBidderSeries } from "@/lib/dashboard-metrics";
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 import type { JobApplication } from "@/lib/models";
 
 type BidderAnalyticsProps = {

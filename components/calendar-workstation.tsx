@@ -1,11 +1,16 @@
 "use client";
 
+<<<<<<< HEAD
 import { useEffect, useMemo, useState, useTransition } from "react";
+=======
+import { useEffect, useMemo, useState } from "react";
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 import {
   CalendarPlus,
   ChevronLeft,
   ChevronRight,
   Clock,
+<<<<<<< HEAD
   ExternalLink,
   GripVertical,
   Pencil,
@@ -14,6 +19,11 @@ import {
   X
 } from "lucide-react";
 import { HelpTooltip } from "@/components/help-tooltip";
+=======
+  GripVertical,
+  Video
+} from "lucide-react";
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 import { InterviewModal } from "@/components/interview-modal";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +35,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+<<<<<<< HEAD
 import {
   canCreateInterview,
   canDeleteInterview,
@@ -36,6 +47,9 @@ import {
   type InterviewInput
 } from "@/lib/interview-schema";
 import type { Activity, Interview, InterviewStage, JobApplication, User } from "@/lib/models";
+=======
+import type { Interview, InterviewStage, JobApplication, User } from "@/lib/models";
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 import { cn, formatDate } from "@/lib/utils";
 
 type CalendarView = "month" | "week" | "day";
@@ -49,13 +63,18 @@ type WeekDay = {
 
 type CalendarWorkstationProps = {
   applications: JobApplication[];
+<<<<<<< HEAD
   currentUser: User;
   initialActivities: Activity[];
+=======
+  currentCallerId: string;
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   initialInterviews: Interview[];
   users: User[];
 };
 
 const stages = ["Intro", "Tech", "Culture", "Final"] as const;
+<<<<<<< HEAD
 const slotHours = Array.from({ length: 24 }, (_, index) => index);
 const slotHeight = 64;
 
@@ -68,19 +87,42 @@ const stageTone: Record<InterviewStage, string> = {
     "border-l-teal-500 bg-teal-100/95 text-teal-950 ring-1 ring-inset ring-teal-200 dark:bg-teal-500/20 dark:text-teal-100 dark:ring-teal-400/30",
   Final:
     "border-l-amber-500 bg-amber-100/95 text-amber-950 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
+=======
+const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const slotHours = Array.from({ length: 12 }, (_, index) => index + 8);
+const slotHeight = 72;
+
+const stageTone: Record<InterviewStage, string> = {
+  Intro:
+    "border-l-sky-500 bg-sky-50 text-sky-950 ring-1 ring-inset ring-sky-200 dark:bg-sky-500/18 dark:text-sky-100 dark:ring-sky-400/30",
+  Tech:
+    "border-l-indigo-500 bg-indigo-50 text-indigo-950 ring-1 ring-inset ring-indigo-200 dark:bg-indigo-500/18 dark:text-indigo-100 dark:ring-indigo-400/30",
+  Culture:
+    "border-l-teal-500 bg-teal-50 text-teal-950 ring-1 ring-inset ring-teal-200 dark:bg-teal-500/18 dark:text-teal-100 dark:ring-teal-400/30",
+  Final:
+    "border-l-amber-500 bg-amber-50 text-amber-950 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/18 dark:text-amber-100 dark:ring-amber-400/30"
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 };
 
 function startOfWeek(date: Date) {
   const next = new Date(date);
+<<<<<<< HEAD
   const day = next.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   next.setDate(next.getDate() + diff);
   next.setHours(0, 0, 0, 0);
+=======
+  const day = next.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setUTCDate(next.getUTCDate() + diff);
+  next.setUTCHours(0, 0, 0, 0);
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   return next;
 }
 
 function addDays(date: Date, days: number) {
   const next = new Date(date);
+<<<<<<< HEAD
   next.setDate(next.getDate() + days);
   return next;
 }
@@ -95,11 +137,28 @@ function isSameCalendarDay(left: Date, right: Date) {
 
 function formatDateLabel(date: Date, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat("en-US", options).format(date);
+=======
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function isSameUtcDay(left: Date, right: Date) {
+  return (
+    left.getUTCFullYear() === right.getUTCFullYear() &&
+    left.getUTCMonth() === right.getUTCMonth() &&
+    left.getUTCDate() === right.getUTCDate()
+  );
+}
+
+function formatWeekdayDate(date: Date, options: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...options }).format(date);
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 }
 
 function formatTimeLabel(date: string) {
   return new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
+<<<<<<< HEAD
     minute: "2-digit"
   }).format(new Date(date));
 }
@@ -110,11 +169,16 @@ function formatDateTimeLabel(date: string) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit"
+=======
+    minute: "2-digit",
+    timeZone: "UTC"
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   }).format(new Date(date));
 }
 
 function getInterviewOffset(interview: Interview) {
   const start = new Date(interview.startTime);
+<<<<<<< HEAD
   const startHour = start.getHours();
   const startMinutes = start.getMinutes();
   const minutesFromStart = (startHour - slotHours[0]) * 60 + startMinutes;
@@ -231,12 +295,29 @@ function replaceInterview(current: Interview[], next: Interview) {
   }
 
   return current.map((item) => (item.id === next.id ? next : item));
+=======
+  const startHour = start.getUTCHours();
+  const startMinutes = start.getUTCMinutes();
+  const minutesFromStart = (startHour - slotHours[0]) * 60 + startMinutes;
+  return Math.max(0, (minutesFromStart / 60) * slotHeight);
+}
+
+function getInterviewHeight(interview: Interview) {
+  const start = new Date(interview.startTime).getTime();
+  const end = new Date(interview.endTime).getTime();
+  const durationMinutes = Math.max(30, (end - start) / (1000 * 60));
+  return (durationMinutes / 60) * slotHeight;
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 }
 
 export function CalendarWorkstation({
   applications,
+<<<<<<< HEAD
   currentUser,
   initialActivities,
+=======
+  currentCallerId,
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   initialInterviews,
   users
 }: CalendarWorkstationProps) {
@@ -244,6 +325,7 @@ export function CalendarWorkstation({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingInterview, setEditingInterview] = useState<Interview | null>(null);
   const [items, setItems] = useState<Interview[]>(initialInterviews);
+<<<<<<< HEAD
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedInterviewId, setSelectedInterviewId] = useState("");
@@ -256,6 +338,10 @@ export function CalendarWorkstation({
     () => users.filter((user) => user.role === "caller" && user.active),
     [users]
   );
+=======
+  const [weekOffset, setWeekOffset] = useState(0);
+
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   const developers = useMemo(
     () => users.filter((user) => user.role === "developer" && user.active),
     [users]
@@ -265,6 +351,7 @@ export function CalendarWorkstation({
     [applications]
   );
   const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+<<<<<<< HEAD
   const interviewActivities = useMemo(
     () =>
       activities
@@ -289,6 +376,8 @@ export function CalendarWorkstation({
   }, [applications, currentUser.id, currentUser.role]);
 
   const canCreate = canCreateInterview(currentUser);
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 
   const baseWeekStart = useMemo(() => {
     const reference = items[0] ? new Date(items[0].startTime) : new Date("2026-06-08T00:00:00Z");
@@ -303,8 +392,13 @@ export function CalendarWorkstation({
         const date = addDays(weekStart, index);
         return {
           key: date.toISOString(),
+<<<<<<< HEAD
           label: formatDateLabel(date, { weekday: "short" }),
           shortLabel: formatDateLabel(date, { weekday: "short" }),
+=======
+          label: dayNames[date.getUTCDay()],
+          shortLabel: formatWeekdayDate(date, { weekday: "short" }),
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
           date
         };
       }),
@@ -318,6 +412,7 @@ export function CalendarWorkstation({
       setSelectedDayKey(weekDays[0]?.key ?? "");
     }
   }, [selectedDayKey, weekDays]);
+<<<<<<< HEAD
 
   useEffect(() => {
     if (!items.some((item) => item.id === selectedInterviewId)) {
@@ -325,6 +420,8 @@ export function CalendarWorkstation({
       setDrawerOpen(false);
     }
   }, [items, selectedInterviewId]);
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 
   const monthDays = useMemo(() => {
     const monthStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
@@ -448,6 +545,7 @@ export function CalendarWorkstation({
     setModalOpen(true);
   }
 
+<<<<<<< HEAD
   function handleUpdateResult(result: (typeof interviewResultOptions)[number]) {
     if (!selectedInterview || !canUpdateResultSelected) {
       return;
@@ -518,6 +616,45 @@ export function CalendarWorkstation({
       })();
     });
   }
+=======
+  const upcoming = [...items]
+    .sort((left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime())
+    .slice(0, 5);
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
+
+  const selectedDay = weekDays.find((day) => day.key === selectedDayKey) ?? weekDays[0];
+  const selectedDayInterviews = selectedDay
+    ? items.filter((interview) => isSameUtcDay(new Date(interview.startTime), selectedDay.date))
+    : [];
+
+  async function handleAddInterview(values: {
+    applicationId: string;
+    developerId: string;
+    title: string;
+    stage: InterviewStage;
+    startTime: string;
+    endTime: string;
+    meetingLink: string;
+    notes: string;
+  }) {
+    const response = await fetch("/api/interviews", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        ...values,
+        callerId: currentCallerId
+      })
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const interview = (await response.json()) as Interview;
+    setItems((current) => [interview, ...current]);
+  }
 
   return (
     <>
@@ -549,8 +686,13 @@ export function CalendarWorkstation({
           </div>
         </CardHeader>
 
+<<<<<<< HEAD
         <CardContent className="relative overflow-hidden">
           <div className="min-w-0 rounded-xl border bg-card p-3 shadow-sm">
+=======
+        <CardContent className="grid gap-5 xl:grid-cols-[1fr_320px]">
+          <div className="rounded-xl border bg-card p-3 shadow-sm">
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -574,11 +716,19 @@ export function CalendarWorkstation({
                   </Button>
                   <div>
                     <p className="text-sm font-semibold">
+<<<<<<< HEAD
                       {formatDateLabel(weekStart, { month: "long", year: "numeric" })}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDateLabel(weekStart, { month: "short", day: "numeric" })} to{" "}
                       {formatDateLabel(addDays(weekStart, 6), { month: "short", day: "numeric" })}
+=======
+                      {formatWeekdayDate(weekStart, { month: "long", year: "numeric" })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatWeekdayDate(weekStart, { month: "short", day: "numeric" })} to{" "}
+                      {formatWeekdayDate(addDays(weekStart, 6), { month: "short", day: "numeric" })}
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                     </p>
                   </div>
                 </div>
@@ -603,6 +753,7 @@ export function CalendarWorkstation({
             </div>
 
             {view === "month" ? (
+<<<<<<< HEAD
               <MonthGrid
                 applications={applications}
                 days={monthDays}
@@ -610,15 +761,22 @@ export function CalendarWorkstation({
                 onSelectInterview={handleSelectInterview}
                 selectedInterviewId={selectedInterviewId}
               />
+=======
+              <MonthGrid applications={applications} days={monthDays} interviews={items} />
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
             ) : (
               <WeekGrid
                 applications={applications}
                 interviews={items}
                 compact={view === "day"}
                 onSelectDay={setSelectedDayKey}
+<<<<<<< HEAD
                 onSelectInterview={handleSelectInterview}
                 selectedDayKey={selectedDay?.key}
                 selectedInterviewId={selectedInterviewId}
+=======
+                selectedDayKey={selectedDay?.key}
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                 weekDays={weekDays}
               />
             )}
@@ -674,12 +832,27 @@ export function CalendarWorkstation({
                 <Video className="size-4 text-primary" aria-hidden="true" />
               </div>
 
+<<<<<<< HEAD
+=======
+            <div className="rounded-xl border bg-card p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Upcoming interviews</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Meet links and stage context ready to launch.
+                  </p>
+                </div>
+                <Video className="size-4 text-primary" aria-hidden="true" />
+              </div>
+
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
               <div className="mt-4 flex flex-col gap-3">
                 {(view === "day" ? selectedDayInterviews : upcoming).map((interview) => {
                   const application = applicationsById.get(interview.applicationId) ?? applications[0];
                   const developer = usersById.get(interview.developerId);
 
                   return (
+<<<<<<< HEAD
                     <button
                       key={interview.id}
                       type="button"
@@ -691,6 +864,9 @@ export function CalendarWorkstation({
                           : "bg-slate-50/80 hover:border-primary/30 hover:bg-muted/40 dark:bg-card/70"
                       )}
                     >
+=======
+                    <div key={interview.id} className="rounded-xl border bg-slate-50/80 p-3">
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold">{interview.title}</p>
@@ -709,7 +885,11 @@ export function CalendarWorkstation({
                 })}
 
                 {view === "day" && selectedDayInterviews.length === 0 ? (
+<<<<<<< HEAD
                   <div className="rounded-xl border border-dashed bg-slate-50/70 p-4 text-sm text-muted-foreground dark:bg-card/70">
+=======
+                  <div className="rounded-xl border border-dashed bg-slate-50/70 p-4 text-sm text-muted-foreground">
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                     No interviews booked for {selectedDay?.shortLabel}.
                   </div>
                 ) : null}
@@ -910,6 +1090,7 @@ export function CalendarWorkstation({
       </Card>
 
       <InterviewModal
+<<<<<<< HEAD
         applications={creatableApplications}
         callers={callers}
         currentUser={currentUser}
@@ -923,6 +1104,14 @@ export function CalendarWorkstation({
           setModalOpen(open);
         }}
         onSave={saveInterview}
+=======
+        applications={applications}
+        callerId={currentCallerId}
+        developers={developers}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        onAdd={handleAddInterview}
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
       />
     </>
   );
@@ -931,6 +1120,7 @@ export function CalendarWorkstation({
 function MonthGrid({
   applications,
   days,
+<<<<<<< HEAD
   interviews,
   onSelectInterview,
   selectedInterviewId
@@ -941,6 +1131,14 @@ function MonthGrid({
     onSelectInterview: (id: string) => void;
     selectedInterviewId: string;
   }) {
+=======
+  interviews
+}: {
+  applications: JobApplication[];
+  days: Array<{ key: string; day: number | null }>;
+  interviews: Interview[];
+}) {
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   return (
     <div className="grid grid-cols-7 gap-2">
       {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
@@ -971,8 +1169,11 @@ function MonthGrid({
                   key={interview.id}
                   applications={applications}
                   interview={interview}
+<<<<<<< HEAD
                   onSelect={() => onSelectInterview(interview.id)}
                   selected={selectedInterviewId === interview.id}
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                 />
               ))}
             </div>
@@ -989,40 +1190,88 @@ function WeekGrid({
   compact,
   weekDays,
   selectedDayKey,
+<<<<<<< HEAD
   selectedInterviewId,
   onSelectDay,
   onSelectInterview
+=======
+  onSelectDay
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 }: {
   applications: JobApplication[];
   interviews: Interview[];
   weekDays: WeekDay[];
   compact?: boolean;
   selectedDayKey?: string;
+<<<<<<< HEAD
   selectedInterviewId: string;
   onSelectDay: (key: string) => void;
   onSelectInterview: (id: string) => void;
+=======
+  onSelectDay: (key: string) => void;
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 }) {
   const visibleDays = compact ? weekDays.filter((day) => day.key === selectedDayKey) : weekDays;
   const gridHeight = slotHours.length * slotHeight;
 
   return (
+<<<<<<< HEAD
     <div className="overflow-hidden rounded-xl border bg-white/90 shadow-sm dark:bg-card/90">
       {compact ? (
         <div className="border-b bg-slate-50 px-4 py-3 dark:bg-slate-900/40">
+=======
+    <div className="overflow-hidden rounded-xl border bg-white/70 dark:bg-card/80">
+      {!compact ? (
+        <div className="grid grid-cols-7 border-b bg-slate-50/90 dark:bg-slate-900/40">
+          {weekDays.map((day) => {
+            const active = day.key === selectedDayKey;
+
+            return (
+              <button
+                key={day.key}
+                type="button"
+                onClick={() => onSelectDay(day.key)}
+                className={cn(
+                  "flex min-h-[68px] flex-col items-start gap-1 border-r px-4 py-3 text-left transition-colors last:border-r-0",
+                  active && "bg-primary/10"
+                )}
+              >
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  {day.label}
+                </span>
+                <span className="text-lg font-semibold">
+                  {formatWeekdayDate(day.date, { day: "numeric" })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="border-b bg-slate-50/90 px-4 py-3 dark:bg-slate-900/40">
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {visibleDays[0]?.label}
           </p>
           <p className="text-lg font-semibold">
             {visibleDays[0]
+<<<<<<< HEAD
               ? formatDateLabel(visibleDays[0].date, { month: "long", day: "numeric" })
               : ""}
           </p>
         </div>
       ) : null}
+=======
+              ? formatWeekdayDate(visibleDays[0].date, { month: "long", day: "numeric" })
+              : ""}
+          </p>
+        </div>
+      )}
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 
       <div className="overflow-x-auto">
         <div
           className={cn(
+<<<<<<< HEAD
             "grid min-w-[1200px]",
             compact
               ? "grid-cols-[76px_minmax(360px,1fr)]"
@@ -1030,6 +1279,15 @@ function WeekGrid({
           )}
         >
           <div className="border-r bg-slate-50 dark:bg-slate-900/30">
+=======
+            "grid min-w-[900px]",
+            compact
+              ? "grid-cols-[72px_minmax(280px,1fr)]"
+              : "grid-cols-[72px_repeat(7,minmax(140px,1fr))]"
+          )}
+        >
+          <div className="border-r bg-slate-50/70 dark:bg-slate-900/30">
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
             <div className="h-14 border-b" />
             {slotHours.map((hour) => (
               <div
@@ -1037,13 +1295,18 @@ function WeekGrid({
                 className="border-b px-3 pt-1.5 text-right text-[11px] font-medium text-muted-foreground"
                 style={{ height: `${slotHeight}px` }}
               >
+<<<<<<< HEAD
                 {formatHourLabel(hour)}
+=======
+                {hour === 12 ? "12 PM" : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
               </div>
             ))}
           </div>
 
           {visibleDays.map((day) => {
             const dayInterviews = interviews.filter((interview) =>
+<<<<<<< HEAD
               isSameCalendarDay(new Date(interview.startTime), day.date)
             );
             const layouts = buildDayLayout(dayInterviews);
@@ -1067,6 +1330,23 @@ function WeekGrid({
                 </button>
 
                 <div className="relative bg-white dark:bg-card" style={{ height: `${gridHeight}px` }}>
+=======
+              isSameUtcDay(new Date(interview.startTime), day.date)
+            );
+
+            return (
+              <div key={day.key} className="relative border-r last:border-r-0">
+                <div className="flex h-14 items-center border-b px-3">
+                  <div>
+                    <p className="text-sm font-semibold">{day.shortLabel}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatWeekdayDate(day.date, { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative" style={{ height: `${gridHeight}px` }}>
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                   {slotHours.map((hour) => (
                     <div
                       key={`${day.key}-${hour}`}
@@ -1075,17 +1355,26 @@ function WeekGrid({
                     />
                   ))}
 
+<<<<<<< HEAD
                   {layouts.map(({ interview, offset, height, left, width }) => (
+=======
+                  {dayInterviews.map((interview) => (
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                     <TimedCalendarCard
                       key={interview.id}
                       applications={applications}
                       interview={interview}
+<<<<<<< HEAD
                       offset={offset}
                       height={height}
                       left={left}
                       width={width}
                       onSelect={() => onSelectInterview(interview.id)}
                       selected={selectedInterviewId === interview.id}
+=======
+                      offset={getInterviewOffset(interview)}
+                      height={getInterviewHeight(interview)}
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
                     />
                   ))}
                 </div>
@@ -1100,6 +1389,7 @@ function WeekGrid({
 
 function CalendarCard({
   applications,
+<<<<<<< HEAD
   interview,
   onSelect,
   selected
@@ -1108,6 +1398,12 @@ function CalendarCard({
   interview: Interview;
   onSelect: () => void;
   selected: boolean;
+=======
+  interview
+}: {
+  applications: JobApplication[];
+  interview: Interview;
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 }) {
   const application = applications.find((item) => item.id === interview.applicationId) ?? applications[0];
 
@@ -1196,6 +1492,7 @@ function TimedCalendarCard({
           aria-hidden="true"
         />
         <div className="min-w-0">
+<<<<<<< HEAD
           <div className="flex items-start justify-between gap-2">
             <p className="truncate text-xs font-semibold">{application.company}</p>
             {selected ? (
@@ -1204,6 +1501,43 @@ function TimedCalendarCard({
               </span>
             ) : null}
           </div>
+=======
+          <p className="truncate text-xs font-semibold text-slate-900">{application.company}</p>
+          <p className="truncate text-[11px] text-slate-600">
+            {interview.stage} - {application.jobTitle}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimedCalendarCard({
+  applications,
+  interview,
+  offset,
+  height
+}: {
+  applications: JobApplication[];
+  interview: Interview;
+  offset: number;
+  height: number;
+}) {
+  const application = applications.find((item) => item.id === interview.applicationId) ?? applications[0];
+
+  return (
+    <div
+      className={cn(
+        "absolute left-2 right-2 cursor-grab overflow-hidden rounded-xl border border-l-4 p-2 shadow-sm backdrop-blur-sm",
+        stageTone[interview.stage]
+      )}
+      style={{ top: `${offset}px`, height: `${Math.max(height, 56)}px` }}
+    >
+      <div className="flex items-start gap-2">
+        <GripVertical className="mt-0.5 size-3.5 shrink-0 opacity-70" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold">{application.company}</p>
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
           <p className="truncate text-[11px] opacity-80">
             {interview.stage} | {application.jobTitle}
           </p>
@@ -1218,11 +1552,17 @@ function TimedCalendarCard({
 
 function DetailBox({ label, value }: { label: string; value: string }) {
   return (
+<<<<<<< HEAD
     <div className="rounded-lg border bg-muted/20 p-3">
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
       <p className="mt-2 text-sm font-medium text-foreground">{value}</p>
+=======
+    <div className="rounded-xl border bg-card p-3 shadow-sm">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-bold">{value}</p>
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
     </div>
   );
 }

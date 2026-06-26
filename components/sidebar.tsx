@@ -15,13 +15,15 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
-import type { UserRole } from "@/lib/models";
 
 type SidebarProps = {
   active: string;
   collapsed: boolean;
   onToggle: () => void;
+<<<<<<< HEAD
   role: UserRole;
+=======
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
 };
 
 type NavItem = {
@@ -41,6 +43,7 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings, key: "settings" }
 ];
 
+<<<<<<< HEAD
 export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
   const items = role === "admin"
     ? [
@@ -50,6 +53,9 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
       ]
     : navItems;
 
+=======
+export function Sidebar({ active, collapsed, onToggle }: SidebarProps) {
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
   return (
     <aside
       className={cn(
@@ -57,6 +63,7 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
         collapsed ? "w-[92px]" : "w-72"
       )}
     >
+<<<<<<< HEAD
       <div className="sticky top-0 flex h-screen flex-col">
         <button
           type="button"
@@ -71,6 +78,22 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
           )}
         </button>
 
+=======
+      <button
+        type="button"
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        onClick={onToggle}
+        className="absolute right-0 top-1/2 z-20 flex size-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border bg-white shadow-lg transition-colors hover:bg-slate-50"
+      >
+        {collapsed ? (
+          <ChevronRight className="size-4 text-slate-700" aria-hidden="true" />
+        ) : (
+          <ChevronLeft className="size-4 text-slate-700" aria-hidden="true" />
+        )}
+      </button>
+
+      <div className="sticky top-0 flex h-screen flex-col">
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
         <Link
           href="/"
           className={cn(
@@ -78,7 +101,21 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
             collapsed ? "justify-center px-3" : "gap-3 px-6"
           )}
         >
+<<<<<<< HEAD
           <BrandLogo collapsed={collapsed} />
+=======
+          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
+            PO
+          </span>
+          <span
+            className={cn(
+              "overflow-hidden text-lg font-bold tracking-normal transition-all duration-300 ease-out",
+              collapsed ? "max-w-0 opacity-0" : "max-w-[180px] opacity-100"
+            )}
+          >
+            PipelineOS
+          </span>
+>>>>>>> aa4c91aa4d928027ce6876d5e2316c88f499be4e
         </Link>
 
         <nav className="flex flex-1 flex-col gap-1 px-4 py-5">
