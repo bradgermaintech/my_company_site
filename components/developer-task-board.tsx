@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { ArrowRight, CalendarCheck, MessageSquareText } from "lucide-react";
+import { ArrowRight, CalendarCheck, GripVertical, MessageSquareText } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import type { DeveloperTask, JobApplication, TaskStatus } from "@/lib/models";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 const columns: Array<{ status: TaskStatus; label: string }> = [
   { status: "todo", label: "Todo" },
@@ -45,6 +45,8 @@ export function DeveloperTaskBoard({
   const [statusUpdate, setStatusUpdate] = useState(
     "Frontend shell and interview context are on track. Next update after technical prep review."
   );
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [isPending, startTransition] = useTransition();
   const applicationsById = useMemo(
     () => new Map(applications.map((application) => [application.id, application])),
@@ -61,13 +63,12 @@ export function DeveloperTaskBoard({
     );
   }, [tasks]);
 
-  function moveTask(taskId: string) {
+  function updateTaskStatus(taskId: string, status: TaskStatus) {
     const currentTask = tasks.find((task) => task.id === taskId);
-    if (!currentTask) {
+
+    if (!currentTask || currentTask.status === status) {
       return;
     }
-
-    const next = nextStatus[currentTask.status];
 
     startTransition(async () => {
       const response = await fetch(`/api/developer-tasks/${taskId}`, {
@@ -75,7 +76,7 @@ export function DeveloperTaskBoard({
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ status: next })
+        body: JSON.stringify({ status })
       });
 
       if (!response.ok) {
@@ -87,6 +88,16 @@ export function DeveloperTaskBoard({
         current.map((task) => (task.id === updatedTask.id ? updatedTask : task))
       );
     });
+  }
+
+  function moveTask(taskId: string) {
+    const currentTask = tasks.find((task) => task.id === taskId);
+
+    if (!currentTask) {
+      return;
+    }
+
+    updateTaskStatus(taskId, nextStatus[currentTask.status]);
   }
 
   return (
@@ -131,7 +142,33 @@ export function DeveloperTaskBoard({
 
         <div className="grid gap-3 xl:grid-cols-4">
           {columns.map((column) => (
-            <div key={column.status} className="rounded-lg border bg-slate-50 p-3">
+            <div
+              key={column.status}
+              className={cn(
+                "rounded-lg border bg-slate-50 p-3 transition-colors",
+                dragOverStatus === column.status && "border-primary bg-primary/5"
+              )}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (draggingTaskId) {
+                  setDragOverStatus(column.status);
+                }
+              }}
+              onDragLeave={() => {
+                setDragOverStatus((current) => (current === column.status ? null : current));
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const taskId = event.dataTransfer.getData("text/plain") || draggingTaskId;
+
+                if (taskId) {
+                  updateTaskStatus(taskId, column.status);
+                }
+
+                setDraggingTaskId(null);
+                setDragOverStatus(null);
+              }}
+            >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold">{column.label}</h3>
                 <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-muted-foreground">
@@ -145,9 +182,30 @@ export function DeveloperTaskBoard({
                     const application = applicationsById.get(task.applicationId) ?? applications[0];
 
                     return (
-                      <div key={task.id} className="rounded-lg border bg-white p-3 shadow-line">
+                      <div
+                        key={task.id}
+                        draggable={!isPending}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", task.id);
+                          setDraggingTaskId(task.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingTaskId(null);
+                          setDragOverStatus(null);
+                        }}
+                        className={cn(
+                          "rounded-lg border bg-white p-3 shadow-line transition-all",
+                          isPending && "cursor-progress",
+                          draggingTaskId === task.id && "scale-[1.02] border-primary shadow-lg opacity-70",
+                          !isPending && "cursor-grab active:cursor-grabbing"
+                        )}
+                      >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-semibold">{task.title}</p>
+                          <div className="flex min-w-0 items-start gap-2">
+                            <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            <p className="text-sm font-semibold">{task.title}</p>
+                          </div>
                           <StatusBadge status={task.priority} />
                         </div>
                         <p className="mt-2 text-xs leading-5 text-muted-foreground">
@@ -186,6 +244,9 @@ export function DeveloperTaskBoard({
             <MessageSquareText className="size-4 text-primary" aria-hidden="true" />
             <h3 className="text-sm font-semibold">Status update</h3>
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Drag tasks between columns to update delivery status for the team workspace.
+          </p>
           <Textarea
             value={statusUpdate}
             onChange={(event) => setStatusUpdate(event.target.value)}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import {
   ArrowRight,
   BarChart3,
@@ -97,7 +98,7 @@ export default function LandingPage() {
               Run your software agency pipeline from bid to delivery.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-              Unify bidders, callers, developers, interviews, releases, and payments in one professional agency workspace.
+              Unify bidders, callers, developers, interviews, releases, and payments in one professional AlignOps workspace.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg">
@@ -132,10 +133,7 @@ function Header() {
     <header className="sticky top-0 z-40 border-b bg-white/90 backdrop-blur">
       <div className="container flex h-16 items-center justify-between gap-6">
         <Link href="/" className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            PO
-          </span>
-          <span className="text-lg font-bold tracking-normal">PipelineOS</span>
+          <BrandLogo size="sm" />
         </Link>
         <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
           <a href="#product" className="hover:text-foreground">Product</a>
@@ -308,7 +306,7 @@ function FeatureSection() {
               Everything the agency pipeline needs to stay accountable.
             </h2>
             <p className="mt-4 text-base leading-7 text-muted-foreground">
-              PipelineOS keeps bidding, calling, delivery, release approvals, and payment movement in the same operating rhythm.
+              AlignOps keeps bidding, calling, delivery, release approvals, and payment movement in the same operating rhythm.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2" id="analytics">

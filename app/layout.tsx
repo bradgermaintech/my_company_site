@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "PipelineOS | Agency Pipeline Management",
+  title: "AlignOps | Agency Pipeline Management",
   description:
     "A role-based operating system for software development agencies to manage bids, interviews, delivery, releases, and payments."
 };

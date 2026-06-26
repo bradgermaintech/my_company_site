@@ -13,6 +13,7 @@ import {
   Shield,
   UsersRound
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/models";
 
@@ -77,17 +78,7 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
             collapsed ? "justify-center px-3" : "gap-3 px-6"
           )}
         >
-          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            PO
-          </span>
-          <span
-            className={cn(
-              "overflow-hidden text-lg font-bold tracking-normal transition-all duration-300 ease-out",
-              collapsed ? "max-w-0 opacity-0" : "max-w-[180px] opacity-100"
-            )}
-          >
-            PipelineOS
-          </span>
+          <BrandLogo collapsed={collapsed} />
         </Link>
 
         <nav className="flex flex-1 flex-col gap-1 px-4 py-5">
