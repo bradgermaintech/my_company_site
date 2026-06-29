@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
+import { ScrollToTopButton } from "@/components/scroll-to-top-button";
 import {
   ArrowRight,
   BarChart3,
@@ -124,6 +125,7 @@ export default function LandingPage() {
       <FeatureSection />
       <MetricsSection />
       <BottomCta />
+      <ScrollToTopButton />
     </main>
   );
 }
@@ -131,7 +133,7 @@ export default function LandingPage() {
 function Header() {
   return (
     <header className="sticky top-0 z-40 border-b bg-white/90 backdrop-blur">
-      <div className="container flex h-16 items-center justify-between gap-6">
+      <div className="container flex min-h-16 flex-wrap items-center justify-between gap-3 py-3 sm:h-16 sm:flex-nowrap sm:py-0">
         <Link href="/" className="flex items-center gap-3">
           <BrandLogo size="sm" />
         </Link>
@@ -141,12 +143,12 @@ function Header() {
           <a href="#analytics" className="hover:text-foreground">Analytics</a>
           <a href="#pricing" className="hover:text-foreground">Pricing</a>
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 sm:ml-0">
           <ThemeToggle compact />
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" className="hidden sm:inline-flex">
             <Link href="/login">Login</Link>
           </Button>
-          <Button asChild>
+          <Button asChild size="sm" className="sm:h-10 sm:px-4 sm:py-2">
             <Link href="/login">Get Started</Link>
           </Button>
         </div>
