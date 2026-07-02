@@ -18,6 +18,7 @@ import {
 import { HelpTooltip } from "@/components/help-tooltip";
 import { InterviewModal } from "@/components/interview-modal";
 import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -73,6 +74,24 @@ const stageTone: Record<InterviewStage, string> = {
     "border-l-teal-500 bg-teal-100/95 text-teal-950 ring-1 ring-inset ring-teal-200 dark:bg-teal-500/20 dark:text-teal-100 dark:ring-teal-400/30",
   Final:
     "border-l-amber-500 bg-amber-100/95 text-amber-950 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
+};
+
+const stageBoardTone: Record<InterviewStage, string> = {
+  Intro:
+    "border-sky-200 bg-sky-50/80 shadow-sky-100/60 dark:border-sky-400/20 dark:bg-sky-500/10",
+  Tech:
+    "border-indigo-200 bg-indigo-50/80 shadow-indigo-100/60 dark:border-indigo-400/20 dark:bg-indigo-500/10",
+  Culture:
+    "border-teal-200 bg-teal-50/80 shadow-teal-100/60 dark:border-teal-400/20 dark:bg-teal-500/10",
+  Final:
+    "border-amber-200 bg-amber-50/80 shadow-amber-100/60 dark:border-amber-400/20 dark:bg-amber-500/10"
+};
+
+const stageAccent: Record<InterviewStage, string> = {
+  Intro: "bg-sky-500",
+  Tech: "bg-indigo-500",
+  Culture: "bg-teal-500",
+  Final: "bg-amber-500"
 };
 
 function startOfWeek(date: Date) {
@@ -259,6 +278,8 @@ export function CalendarWorkstation({
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedInterviewId, setSelectedInterviewId] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [draggingInterviewId, setDraggingInterviewId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<InterviewStage | null>(null);
   const [feedback, setFeedback] = useState<string>("");
   const [resultNotes, setResultNotes] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -503,6 +524,58 @@ export function CalendarWorkstation({
     });
   }
 
+  function handleMoveInterviewStage(interviewId: string, stage: InterviewStage) {
+    const interview = items.find((item) => item.id === interviewId);
+
+    if (
+      !interview ||
+      interview.stage === stage ||
+      !canManageInterviewSchedule(currentUser, interview)
+    ) {
+      return;
+    }
+
+    const nextInput: InterviewInput = {
+      applicationId: interview.applicationId,
+      callerId: interview.callerId,
+      developerId: interview.developerId,
+      title: interview.title,
+      stage,
+      startTime: interview.startTime,
+      endTime: interview.endTime,
+      meetingLink: interview.meetingLink,
+      notes: interview.notes
+    };
+
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch(`/api/interviews/${interview.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(nextInput)
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setFeedback(payload.error ?? "Unable to move the interview stage.");
+          return;
+        }
+
+        const updatedInterview = (payload.interview ?? payload) as Interview;
+        setItems((current) => replaceInterview(current, updatedInterview));
+        if (payload.activity) {
+          setActivities((current) => [payload.activity as Activity, ...current]);
+        }
+        setSelectedInterviewId(updatedInterview.id);
+        setDrawerOpen(true);
+        setFeedback(`Interview moved to ${stage}.`);
+      })();
+    });
+  }
+
   function handleDeleteInterview() {
     if (!selectedInterview || !canDeleteSelected) {
       return;
@@ -568,6 +641,25 @@ export function CalendarWorkstation({
 
  
         <CardContent className="relative overflow-hidden">
+          <InterviewProgressBoard
+            applications={applications}
+            currentUser={currentUser}
+            dragOverStage={dragOverStage}
+            draggingInterviewId={draggingInterviewId}
+            interviews={items}
+            isPending={isPending}
+            onDragEnd={() => {
+              setDraggingInterviewId(null);
+              setDragOverStage(null);
+            }}
+            onDragOverStage={setDragOverStage}
+            onMoveInterview={handleMoveInterviewStage}
+            onSelectInterview={handleSelectInterview}
+            onStartDrag={setDraggingInterviewId}
+            selectedInterviewId={selectedInterviewId}
+            users={usersById}
+          />
+
           <div className="min-w-0 rounded-xl border bg-card p-3 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -950,6 +1042,210 @@ export function CalendarWorkstation({
         onSave={saveInterview}
       />
     </>
+  );
+}
+
+function InterviewProgressBoard({
+  applications,
+  currentUser,
+  dragOverStage,
+  draggingInterviewId,
+  interviews,
+  isPending,
+  onDragEnd,
+  onDragOverStage,
+  onMoveInterview,
+  onSelectInterview,
+  onStartDrag,
+  selectedInterviewId,
+  users
+}: {
+  applications: JobApplication[];
+  currentUser: User;
+  dragOverStage: InterviewStage | null;
+  draggingInterviewId: string | null;
+  interviews: Interview[];
+  isPending: boolean;
+  onDragEnd: () => void;
+  onDragOverStage: (stage: InterviewStage | null) => void;
+  onMoveInterview: (interviewId: string, stage: InterviewStage) => void;
+  onSelectInterview: (id: string) => void;
+  onStartDrag: (id: string) => void;
+  selectedInterviewId: string;
+  users: Map<string, User>;
+}) {
+  const applicationsById = useMemo(
+    () => new Map(applications.map((application) => [application.id, application])),
+    [applications]
+  );
+  const orderedInterviews = useMemo(
+    () =>
+      [...interviews].sort(
+        (left, right) =>
+          new Date(left.startTime).getTime() - new Date(right.startTime).getTime()
+      ),
+    [interviews]
+  );
+  const completedCount = interviews.filter((interview) =>
+    ["passed", "failed"].includes(interview.result)
+  ).length;
+
+  return (
+    <section className="mb-5 rounded-xl border bg-muted/15 p-3 shadow-sm sm:p-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold">Interview progress confirmation</h3>
+            <HelpTooltip content="Drag interview cards between stages to confirm where each meeting sits in the hiring flow. The badge on each card shows the current result." />
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Move calls through Intro, Tech, Culture, and Final while keeping the schedule visible below.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="info">{interviews.length} total</Badge>
+          <Badge variant={completedCount ? "success" : "outline"}>
+            {completedCount} completed
+          </Badge>
+        </div>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-4">
+        {stages.map((stage) => {
+          const stageInterviews = orderedInterviews.filter(
+            (interview) => interview.stage === stage
+          );
+          const isDropTarget = dragOverStage === stage;
+
+          return (
+            <div
+              key={stage}
+              className={cn(
+                "min-h-[260px] rounded-xl border p-3 shadow-sm transition-all",
+                stageBoardTone[stage],
+                isDropTarget && "scale-[1.01] border-primary shadow-lg ring-2 ring-primary/30"
+              )}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (draggingInterviewId) {
+                  onDragOverStage(stage);
+                }
+              }}
+              onDragLeave={() => {
+                onDragOverStage((dragOverStage === stage ? null : dragOverStage));
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const interviewId =
+                  event.dataTransfer.getData("text/plain") || draggingInterviewId;
+
+                if (interviewId) {
+                  onMoveInterview(interviewId, stage);
+                }
+
+                onDragEnd();
+              }}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className={cn("size-2 rounded-full", stageAccent[stage])} />
+                  <h4 className="text-sm font-semibold">{stage}</h4>
+                </div>
+                <span className="rounded-md bg-background/80 px-2 py-1 text-xs font-semibold text-muted-foreground shadow-sm">
+                  {stageInterviews.length}
+                </span>
+              </div>
+
+              <div className="flex min-h-[210px] flex-col gap-3">
+                {stageInterviews.map((interview) => {
+                  const application =
+                    applicationsById.get(interview.applicationId) ?? applications[0];
+                  const caller = users.get(interview.callerId);
+                  const developer = users.get(interview.developerId);
+                  const canDrag = canManageInterviewSchedule(currentUser, interview);
+                  const selected = selectedInterviewId === interview.id;
+
+                  return (
+                    <button
+                      key={interview.id}
+                      type="button"
+                      draggable={canDrag && !isPending}
+                      onClick={() => onSelectInterview(interview.id)}
+                      onDragStart={(event) => {
+                        if (!canDrag || isPending) {
+                          event.preventDefault();
+                          return;
+                        }
+
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", interview.id);
+                        onStartDrag(interview.id);
+                      }}
+                      onDragEnd={onDragEnd}
+                      className={cn(
+                        "group relative rounded-xl border bg-background p-3 text-left shadow-sm transition-all duration-200",
+                        canDrag && !isPending && "cursor-grab active:cursor-grabbing",
+                        !canDrag && "cursor-pointer",
+                        draggingInterviewId === interview.id &&
+                          "scale-[1.02] border-primary opacity-70 shadow-lg",
+                        selected
+                          ? "border-primary bg-primary/8 shadow-[0_0_0_1px_rgba(99,102,241,0.22),0_16px_34px_rgba(59,130,246,0.18)] ring-2 ring-primary/25"
+                          : "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <GripVertical
+                            className={cn(
+                              "mt-0.5 size-4 shrink-0 text-muted-foreground transition-colors",
+                              canDrag && "group-hover:text-primary"
+                            )}
+                            aria-hidden="true"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              {interview.title}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {application.company} - {application.jobTitle}
+                            </p>
+                          </div>
+                        </div>
+                        <StatusBadge status={interview.result} />
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+                        <p className="flex items-center gap-1.5">
+                          <Clock className="size-3.5" aria-hidden="true" />
+                          {formatDateTimeLabel(interview.startTime)}
+                        </p>
+                        <p className="truncate">
+                          {caller?.name ?? "Caller pending"} /{" "}
+                          {developer?.name ?? "Developer pending"}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">
+                          {application.status === "Bid" ? "Submitted" : application.status}
+                        </Badge>
+                        {selected ? <Badge variant="info">Selected</Badge> : null}
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {stageInterviews.length === 0 ? (
+                  <div className="flex min-h-[136px] items-center justify-center rounded-lg border border-dashed bg-background/50 px-4 text-center text-sm text-muted-foreground">
+                    Drop an interview here to confirm the {stage.toLowerCase()} step.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
