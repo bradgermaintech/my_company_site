@@ -739,7 +739,7 @@ export function CalendarWorkstation({
 
           <div
             className={cn(
-              "pointer-events-none absolute inset-0 z-20 transition-opacity duration-300",
+              "pointer-events-none absolute inset-0 z-40 transition-opacity duration-300",
               drawerOpen ? "opacity-100" : "opacity-0"
             )}
             aria-hidden={!drawerOpen}
@@ -756,7 +756,7 @@ export function CalendarWorkstation({
 
             <aside
               className={cn(
-                "pointer-events-auto absolute inset-y-0 right-0 flex h-full w-full max-w-[92vw] flex-col border-l bg-background/98 shadow-2xl backdrop-blur transition-transform duration-300 ease-out sm:max-w-[30rem] lg:max-w-[34rem] xl:max-w-[38rem]",
+                "pointer-events-auto absolute inset-y-0 right-0 z-10 flex h-full w-full max-w-[92vw] flex-col border-l bg-background/98 shadow-2xl backdrop-blur transition-transform duration-300 ease-out sm:max-w-[30rem] lg:max-w-[34rem] xl:max-w-[38rem]",
                 drawerOpen ? "translate-x-0" : "translate-x-full"
               )}
             >
@@ -1352,10 +1352,10 @@ function WeekGrid({
         <div
           className={cn(
  
-            "grid min-w-[1200px]",
+            "grid min-w-[1280px]",
             compact
-              ? "grid-cols-[76px_minmax(360px,1fr)]"
-              : "grid-cols-[76px_repeat(7,minmax(160px,1fr))]"
+              ? "grid-cols-[96px_minmax(360px,1fr)]"
+              : "grid-cols-[96px_repeat(7,minmax(160px,1fr))]"
           )}
         >
           <div className="border-r bg-slate-50 dark:bg-slate-900/30">
@@ -1363,7 +1363,7 @@ function WeekGrid({
             {slotHours.map((hour) => (
               <div
                 key={hour}
-                className="border-b px-3 pt-1.5 text-right text-[11px] font-medium text-muted-foreground"
+                className="border-b px-4 pt-2 text-right text-xs font-semibold leading-none text-slate-600 dark:text-slate-300"
                 style={{ height: `${slotHeight}px` }}
               >
  

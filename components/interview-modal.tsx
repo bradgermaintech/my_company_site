@@ -120,12 +120,16 @@ export function InterviewModal({
   const isEditing = Boolean(interview);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4"
+      onMouseDown={() => onOpenChange(false)}
+    >
       <div
-        className="w-full max-w-2xl rounded-lg border bg-white shadow-soft dark:bg-card"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-hidden rounded-lg border bg-white shadow-2xl dark:bg-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="interview-modal-title"
+        onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b p-5">
           <div>
@@ -149,7 +153,10 @@ export function InterviewModal({
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 p-5">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="grid max-h-[calc(100vh-9rem)] gap-4 overflow-y-auto p-5"
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <Field
               label="Application"
