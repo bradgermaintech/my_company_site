@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerAuthSession } from "@/auth";
 import { applicationInputSchema } from "@/lib/application-schema";
+import {
+  canDeleteApplicationByWorkflow,
+  validateApplicationWorkflowChange
+} from "@/lib/pipeline-workflow";
 import { prisma } from "@/lib/prisma";
 import type { JobApplication, UserRole } from "@/lib/models";
 
@@ -71,13 +75,6 @@ async function validateAssignments(input: {
   return null;
 }
 
-function canManageApplication(
-  session: NonNullable<Awaited<ReturnType<typeof getServerAuthSession>>>,
-  bidderId: string
-) {
-  return session.user.role === "admin" || (session.user.role === "bidder" && session.user.id === bidderId);
-}
-
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -93,16 +90,15 @@ export async function PATCH(
     where: { id },
     select: {
       id: true,
-      bidderId: true
+      bidderId: true,
+      callerId: true,
+      developerId: true,
+      status: true
     }
   });
 
   if (!application) {
     return NextResponse.json({ error: "Application not found." }, { status: 404 });
-  }
-
-  if (!canManageApplication(session, application.bidderId)) {
-    return NextResponse.json({ error: "You do not have permission to update this application." }, { status: 403 });
   }
 
   const parsed = applicationInputSchema.safeParse(await request.json());
@@ -121,11 +117,22 @@ export async function PATCH(
     return NextResponse.json({ error: assignmentError }, { status: 400 });
   }
 
-  if (session.user.role === "bidder" && input.bidderId !== session.user.id) {
-    return NextResponse.json(
-      { error: "Bidder accounts must remain assigned to their own application records." },
-      { status: 403 }
-    );
+  const workflowError = validateApplicationWorkflowChange({
+    currentApplication: application,
+    nextApplication: {
+      bidderId: input.bidderId,
+      callerId: input.callerId,
+      developerId: input.developerId,
+      status: input.status
+    },
+    user: {
+      id: session.user.id,
+      role: session.user.role
+    }
+  });
+
+  if (workflowError) {
+    return NextResponse.json({ error: workflowError }, { status: 403 });
   }
 
   const updatedAt = new Date();
@@ -186,7 +193,12 @@ export async function DELETE(
     return NextResponse.json({ error: "Application not found." }, { status: 404 });
   }
 
-  if (!canManageApplication(session, application.bidderId)) {
+  if (
+    !canDeleteApplicationByWorkflow(
+      { id: session.user.id, role: session.user.role },
+      { bidderId: application.bidderId }
+    )
+  ) {
     return NextResponse.json({ error: "You do not have permission to delete this application." }, { status: 403 });
   }
 

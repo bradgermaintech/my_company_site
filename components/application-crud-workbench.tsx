@@ -41,8 +41,15 @@ import {
   releaseStatusOptions,
   type ApplicationInput
 } from "@/lib/application-schema";
+import {
+  canDeleteApplicationByWorkflow,
+  canEditApplicationByWorkflow,
+  getAllowedNextStatuses,
+  stageDescriptions,
+  stageOwners
+} from "@/lib/pipeline-workflow";
 import { formatDate } from "@/lib/utils";
-import type { JobApplication, User } from "@/lib/models";
+import type { JobApplication, PipelineStatus, User } from "@/lib/models";
 
 type ApplicationCrudWorkbenchProps = {
   currentUser: User;
@@ -224,9 +231,11 @@ export function ApplicationCrudWorkbench({
     setEditingApplication(null);
   };
 
-  const canManageApplication = (application: JobApplication) =>
-    currentUser.role === "admin" ||
-    (currentUser.role === "bidder" && application.bidderId === currentUser.id);
+  const canEditApplication = (application: JobApplication) =>
+    canEditApplicationByWorkflow(currentUser, application);
+
+  const canDeleteApplication = (application: JobApplication) =>
+    canDeleteApplicationByWorkflow(currentUser, application);
 
   const handleSave = (values: ApplicationInput) => {
     startTransition(() => {
@@ -513,7 +522,8 @@ export function ApplicationCrudWorkbench({
                       const bidder = usersById.get(application.bidderId);
                       const caller = usersById.get(application.callerId);
                       const developer = usersById.get(application.developerId);
-                      const canManage = canManageApplication(application);
+                      const canEdit = canEditApplication(application);
+                      const canDelete = canDeleteApplication(application);
 
                       return (
                         <tr
@@ -559,32 +569,36 @@ export function ApplicationCrudWorkbench({
                           </td>
                           <td className="px-5 py-4 align-top">
                             <div className="flex items-center justify-end gap-2">
-                              {canManage ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label={`Edit ${application.company}`}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      openEdit(application);
-                                    }}
-                                  >
-                                    <Pencil className="size-4" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label={`Delete ${application.company}`}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setDeleteTarget(application);
-                                    }}
-                                  >
-                                    <Trash2 className="size-4 text-destructive" />
-                                  </Button>
+                                  {canEdit ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label={`Edit ${application.company}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openEdit(application);
+                                      }}
+                                    >
+                                      <Pencil className="size-4" />
+                                    </Button>
+                                  ) : null}
+                                  {canDelete ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label={`Delete ${application.company}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setDeleteTarget(application);
+                                      }}
+                                    >
+                                      <Trash2 className="size-4 text-destructive" />
+                                    </Button>
+                                  ) : null}
                                 </>
                               ) : (
                                 <span className="text-xs font-medium text-muted-foreground">Read only</span>
@@ -636,7 +650,7 @@ export function ApplicationCrudWorkbench({
                     Open JD
                     <ArrowUpRight className="size-4" />
                   </a>
-                  {canManageApplication(selectedApplication) ? (
+                  {canEditApplication(selectedApplication) ? (
                     <Button type="button" variant="outline" onClick={() => openEdit(selectedApplication)}>
                       <Pencil className="size-4" />
                       Edit
@@ -679,6 +693,22 @@ export function ApplicationCrudWorkbench({
                       label="Developer"
                       user={usersById.get(selectedApplication.developerId)}
                     />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    Stage ownership
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    {stageDescriptions[selectedApplication.status]}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {stageOwners[selectedApplication.status].map((role) => (
+                      <Badge key={role} variant="secondary" className="capitalize">
+                        {role}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
 
@@ -766,6 +796,14 @@ function ApplicationFormSheet({
   onClose: () => void;
   onSubmit: (values: ApplicationInput) => void;
 }) {
+  const statusOptions = useMemo<PipelineStatus[]>(() => {
+    if (mode === "create" || !application) {
+      return ["Bid"];
+    }
+
+    return getAllowedNextStatuses(currentUser, application);
+  }, [application, currentUser, mode]);
+  const canReassignOwners = currentUser.role === "admin";
   const form = useForm<ApplicationInput>({
     resolver: zodResolver(applicationInputSchema),
     defaultValues: getDefaultValues({
@@ -876,7 +914,7 @@ function ApplicationFormSheet({
                 >
                   <Select
                     {...form.register("bidderId")}
-                    disabled={currentUser.role === "bidder"}
+                    disabled={!canReassignOwners}
                   >
                     {bidders.map((user) => (
                       <option key={user.id} value={user.id}>
@@ -892,7 +930,7 @@ function ApplicationFormSheet({
                   description="This is the teammate who typically works most from the calendar view."
                   error={form.formState.errors.callerId?.message}
                 >
-                  <Select {...form.register("callerId")}>
+                  <Select {...form.register("callerId")} disabled={mode === "edit" && !canReassignOwners}>
                     {callers.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.name}
@@ -907,7 +945,7 @@ function ApplicationFormSheet({
                   description="This helps delivery and task tracking stay attached to the right record."
                   error={form.formState.errors.developerId?.message}
                 >
-                  <Select {...form.register("developerId")}>
+                  <Select {...form.register("developerId")} disabled={mode === "edit" && !canReassignOwners}>
                     {developers.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.name}
@@ -926,7 +964,7 @@ function ApplicationFormSheet({
                   error={form.formState.errors.status?.message}
                 >
                   <Select {...form.register("status")}>
-                    {pipelineStatusOptions.map((status) => (
+                    {statusOptions.map((status) => (
                       <option key={status} value={status}>
                         {status}
                       </option>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerAuthSession } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { applicationInputSchema } from "@/lib/application-schema";
+import { stageDescriptions } from "@/lib/pipeline-workflow";
 import type { JobApplication, UserRole } from "@/lib/models";
 
 function serializeApplication(application: {
@@ -92,6 +93,16 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+
+  if (input.status !== "Bid") {
+    return NextResponse.json(
+      {
+        error: `New applications must start in Bid. ${stageDescriptions.Bid}`
+      },
+      { status: 400 }
+    );
+  }
+
   const assignmentError = await validateAssignments(input);
 
   if (assignmentError) {
