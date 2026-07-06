@@ -7,9 +7,11 @@ import {
   getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
-  type ColumnDef
+  type ColumnDef,
+  type ColumnFiltersState
 } from "@tanstack/react-table";
 import { ExternalLink, SlidersHorizontal } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,7 +43,9 @@ export function ApplicationTable({
   title = "Application pipeline",
   showFilters = true
 }: ApplicationTableProps) {
-  const [globalFilter, setGlobalFilter] = useState("");
+  const searchParams = useSearchParams();
+  const [globalFilter, setGlobalFilter] = useState(searchParams.get("q") ?? "");
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [statusFilter, setStatusFilter] = useState<PipelineStatus | "all">("all");
   const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
 
@@ -150,9 +154,11 @@ export function ApplicationTable({
     data: filteredData,
     columns,
     state: {
-      globalFilter
+      globalFilter,
+      columnFilters
     },
     onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel()
@@ -211,6 +217,20 @@ export function ApplicationTable({
                 ))}
               </TableRow>
             ))}
+            <TableRow>
+              {table.getLeafHeaders().map((header) => (
+                <TableHead key={`${header.id}-filter`} className="normal-case">
+                  {header.column.getCanFilter() ? (
+                    <Input
+                      value={(header.column.getFilterValue() as string | undefined) ?? ""}
+                      onChange={(event) => header.column.setFilterValue(event.target.value)}
+                      placeholder="Filter"
+                      className="h-8 min-w-[120px] text-xs"
+                    />
+                  ) : null}
+                </TableHead>
+              ))}
+            </TableRow>
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (

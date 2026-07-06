@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerAuthSession } from "@/auth";
+import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 
 const updateUserSchema = z
   .object({
+    type: z.enum(["profile", "reset-password"]).optional(),
     name: z.string().min(2).max(80).optional(),
     email: z.string().email().optional(),
     role: z.enum(["admin", "bidder", "caller", "developer"]).optional(),
@@ -21,6 +23,11 @@ function createAvatar(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "PO";
+}
+
+function createTemporaryPassword(name: string) {
+  const firstName = name.trim().split(/\s+/)[0]?.toLowerCase() || "user";
+  return `${firstName}123@alignops`;
 }
 
 function serializeUser(user: {
@@ -66,6 +73,31 @@ export async function PATCH(
 
   if (!user) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+
+  if (input.type === "reset-password") {
+    const temporaryPassword = createTemporaryPassword(user.name);
+    const passwordHash = await hashPassword(temporaryPassword);
+
+    await prisma.user.update({
+      where: { id },
+      data: { passwordHash }
+    });
+
+    await prisma.activity.create({
+      data: {
+        id: `act-${crypto.randomUUID()}`,
+        userId: session.user.id,
+        action: "Reset user password",
+        target: `${user.name} temporary password initialized`,
+        timestamp: new Date()
+      }
+    });
+
+    return NextResponse.json({
+      temporaryPassword,
+      user: serializeUser(user)
+    });
   }
 
   if (input.email && input.email !== user.email) {
@@ -140,4 +172,104 @@ export async function PATCH(
   });
 
   return NextResponse.json(serializeUser(updated));
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerAuthSession();
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Sign in to manage users." }, { status: 401 });
+  }
+
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Only admins can delete users." }, { status: 403 });
+  }
+
+  const { id } = await context.params;
+
+  if (id === session.user.id) {
+    return NextResponse.json({ error: "You cannot delete your own admin account." }, { status: 400 });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id } });
+
+  if (!user) {
+    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+
+  const activeAdminCount = await prisma.user.count({
+    where: { role: "admin", active: true }
+  });
+
+  if (user.role === "admin" && user.active && activeAdminCount <= 1) {
+    return NextResponse.json(
+      { error: "At least one active admin must remain in the workspace." },
+      { status: 400 }
+    );
+  }
+
+  const linkedRecords = await prisma.$transaction([
+    prisma.application.count({
+      where: {
+        OR: [{ bidderId: id }, { callerId: id }, { developerId: id }]
+      }
+    }),
+    prisma.interview.count({
+      where: {
+        OR: [{ callerId: id }, { developerId: id }]
+      }
+    }),
+    prisma.developerTask.count({ where: { developerId: id } }),
+    prisma.release.count({ where: { approvedBy: id } })
+  ]);
+  const hasHistory = linkedRecords.some((count) => count > 0);
+
+  if (hasHistory) {
+    const archived = await prisma.user.update({
+      where: { id },
+      data: { active: false },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+        avatar: true,
+        active: true
+      }
+    });
+
+    await prisma.session.deleteMany({ where: { userId: id } });
+    await prisma.activity.create({
+      data: {
+        id: `act-${crypto.randomUUID()}`,
+        userId: session.user.id,
+        action: "Archived user",
+        target: `${user.name} retained for historical records`,
+        timestamp: new Date()
+      }
+    });
+
+    return NextResponse.json({
+      mode: "archived",
+      user: serializeUser(archived),
+      warning: "Historical records exist, so the member was deactivated instead of permanently deleted."
+    });
+  }
+
+  await prisma.user.delete({ where: { id } });
+  await prisma.activity.create({
+    data: {
+      id: `act-${crypto.randomUUID()}`,
+      userId: session.user.id,
+      action: "Deleted user",
+      target: `${user.name} removed from workspace`,
+      timestamp: new Date()
+    }
+  });
+
+  return NextResponse.json({ mode: "deleted", id });
 }

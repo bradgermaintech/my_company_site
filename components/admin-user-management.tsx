@@ -1,7 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Save, ShieldCheck, UserCog, UsersRound, X } from "lucide-react";
+import { KeyRound, Plus, Save, Search, ShieldCheck, Trash2, UserCog, UsersRound, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -62,9 +63,13 @@ export function AdminUserManagement({
   initialUsers,
   interviews
 }: AdminUserManagementProps) {
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState(initialUsers);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [memberFilter, setMemberFilter] = useState(searchParams.get("q") ?? "");
+  const [roleFilter, setRoleFilter] = useState<User["role"] | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [isPending, startTransition] = useTransition();
   const createForm = useForm<CreateMemberForm>({
     resolver: zodResolver(createMemberSchema),
@@ -78,6 +83,24 @@ export function AdminUserManagement({
 
   const activeUsers = users.filter((user) => user.active);
   const activeAdmins = users.filter((user) => user.role === "admin" && user.active).length;
+  const filteredUsers = useMemo(() => {
+    const query = memberFilter.trim().toLowerCase();
+
+    return users.filter((user) => {
+      const matchesQuery =
+        !query ||
+        [user.name, user.email, user.role]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" ? user.active : !user.active);
+
+      return matchesQuery && matchesRole && matchesStatus;
+    });
+  }, [memberFilter, roleFilter, statusFilter, users]);
 
   const workloadByUser = useMemo(() => {
     return new Map(
@@ -120,6 +143,10 @@ export function AdminUserManagement({
     setUsers((currentUsers) =>
       currentUsers.map((user) => (user.id === nextUser.id ? nextUser : user))
     );
+  }
+
+  function removeUser(userId: string) {
+    setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId));
   }
 
   function handleCreate(values: CreateMemberForm) {
@@ -201,10 +228,44 @@ export function AdminUserManagement({
 
         <Card>
           <CardHeader>
-            <CardTitle>Members</CardTitle>
-            <CardDescription>
-              Edit profile details, role assignment, status, and workload visibility for each workspace user.
-            </CardDescription>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <CardTitle>Members</CardTitle>
+                <CardDescription>
+                  Edit profile details, role assignment, status, and workload visibility for each workspace user.
+                </CardDescription>
+              </div>
+              <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_150px_150px]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={memberFilter}
+                    onChange={(event) => setMemberFilter(event.target.value)}
+                    className="pl-9"
+                    placeholder="Filter member or email"
+                  />
+                </div>
+                <Select
+                  value={roleFilter}
+                  onChange={(event) => setRoleFilter(event.target.value as User["role"] | "all")}
+                >
+                  <option value="all">All roles</option>
+                  {Object.entries(roleLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -215,21 +276,29 @@ export function AdminUserManagement({
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Workload</TableHead>
-                    <TableHead className="text-right">Save</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <UserRow
                       key={user.id}
                       currentUserId={currentUserId}
                       isPending={isPending}
                       onFeedback={setFeedback}
+                      onRemoved={removeUser}
                       onUpdated={updateUser}
                       user={user}
                       workload={workloadByUser.get(user.id) ?? { applications: 0, interviews: 0 }}
                     />
                   ))}
+                  {filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                        No members match the current filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
                 </TableBody>
               </Table>
             </div>
@@ -307,6 +376,7 @@ function UserRow({
   currentUserId,
   isPending,
   onFeedback,
+  onRemoved,
   onUpdated,
   user,
   workload
@@ -314,6 +384,7 @@ function UserRow({
   currentUserId: string;
   isPending: boolean;
   onFeedback: (state: FeedbackState) => void;
+  onRemoved: (userId: string) => void;
   onUpdated: (user: User) => void;
   user: User;
   workload: { applications: number; interviews: number };
@@ -360,6 +431,76 @@ function UserRow({
     });
   }
 
+  function resetPassword() {
+    onFeedback(null);
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch(`/api/users/${user.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ type: "reset-password" })
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          onFeedback({
+            tone: "error",
+            message: payload.error ?? "Unable to reset the user password."
+          });
+          return;
+        }
+
+        onFeedback({
+          tone: "success",
+          message: `${user.name}'s temporary password is ${payload.temporaryPassword}`
+        });
+      })();
+    });
+  }
+
+  function deleteUser() {
+    if (!window.confirm(`Delete ${user.name}? Users with historical records will be archived instead.`)) {
+      return;
+    }
+
+    onFeedback(null);
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch(`/api/users/${user.id}`, {
+          method: "DELETE"
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          onFeedback({
+            tone: "error",
+            message: payload.error ?? "Unable to delete the user."
+          });
+          return;
+        }
+
+        if (payload.mode === "archived") {
+          onUpdated(payload.user as User);
+          onFeedback({
+            tone: "success",
+            message: `${payload.user.name} was archived. ${payload.warning ?? ""}`.trim()
+          });
+          setActive(false);
+          return;
+        }
+
+        onRemoved(user.id);
+        onFeedback({
+          tone: "success",
+          message: `${user.name} deleted successfully.`
+        });
+      })();
+    });
+  }
+
   return (
     <TableRow>
       <TableCell>
@@ -400,10 +541,26 @@ function UserRow({
         </div>
       </TableCell>
       <TableCell className="text-right">
-        <Button type="button" variant="outline" size="sm" disabled={isSaving || isPending} onClick={saveRow}>
-          <Save className="size-4" />
-          Save
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" disabled={isSaving || isPending} onClick={saveRow}>
+            <Save className="size-4" />
+            Save
+          </Button>
+          <Button type="button" variant="outline" size="sm" disabled={isSaving || isPending} onClick={resetPassword}>
+            <KeyRound className="size-4" />
+            Reset
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={isSaving || isPending || currentUserId === user.id}
+            onClick={deleteUser}
+          >
+            <Trash2 className="size-4" />
+            Delete
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );

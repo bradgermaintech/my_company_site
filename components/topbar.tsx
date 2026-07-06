@@ -2,7 +2,9 @@
 "use client";
 
 import { Bell, HelpCircle, Search, X } from "lucide-react";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { GettingStartedGuide } from "@/components/getting-started-guide";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -19,6 +21,28 @@ type TopbarProps = {
 
 export function Topbar({ currentUser, role, title }: TopbarProps) {
   const [helpOpen, setHelpOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
+
+  useEffect(() => {
+    setQuery(searchParams.get("q") ?? "");
+  }, [searchParams]);
+
+  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (query.trim()) {
+      params.set("q", query.trim());
+    } else {
+      params.delete("q");
+    }
+
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  }
 
   return (
     <>
@@ -52,10 +76,15 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
           </div>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative min-w-0 lg:max-w-md lg:flex-1">
+            <form className="relative min-w-0 lg:max-w-md lg:flex-1" onSubmit={submitSearch}>
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Search jobs, companies, notes" />
-            </div>
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="pl-9"
+                placeholder="Search jobs, companies, notes"
+              />
+            </form>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between lg:justify-end">
               <div className="flex items-center justify-between gap-3 sm:w-auto">

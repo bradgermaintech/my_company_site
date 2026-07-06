@@ -1,3 +1,7 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   BriefcaseBusiness,
   CalendarCheck,
@@ -19,6 +23,7 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -154,7 +159,16 @@ function TeamPerformanceTable({
   developerTasks: DeveloperTask[];
   users: User[];
 }) {
-  const rows = users
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState({
+    member: searchParams.get("q") ?? "",
+    role: "",
+    records: "",
+    tasks: "",
+    offers: "",
+    health: ""
+  });
+  const rows = useMemo(() => users
     .filter((user) => user.role !== "admin")
     .map((user) => {
       const ownedApplications = applications.filter((application) => {
@@ -176,7 +190,22 @@ function TeamPerformanceTable({
         tasks,
         offers
       };
-    });
+    })
+    .filter(({ user, ownedApplications, tasks, offers }) => {
+      const health = ownedApplications.length > 1 ? "approved" : "pending";
+      return (
+        [user.name, user.email].join(" ").toLowerCase().includes(filters.member.toLowerCase()) &&
+        user.role.toLowerCase().includes(filters.role.toLowerCase()) &&
+        ownedApplications.length.toString().includes(filters.records) &&
+        tasks.length.toString().includes(filters.tasks) &&
+        offers.toString().includes(filters.offers) &&
+        health.includes(filters.health.toLowerCase())
+      );
+    }), [applications, developerTasks, filters, users]);
+
+  function setFilter(key: keyof typeof filters, value: string) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
 
   return (
     <Card>
@@ -193,6 +222,14 @@ function TeamPerformanceTable({
               <TableHead>Tasks</TableHead>
               <TableHead>Offers</TableHead>
               <TableHead>Health</TableHead>
+            </TableRow>
+            <TableRow>
+              <TableHead><Input value={filters.member} onChange={(event) => setFilter("member", event.target.value)} placeholder="Filter" className="h-8 text-xs" /></TableHead>
+              <TableHead><Input value={filters.role} onChange={(event) => setFilter("role", event.target.value)} placeholder="Filter" className="h-8 text-xs" /></TableHead>
+              <TableHead><Input value={filters.records} onChange={(event) => setFilter("records", event.target.value)} placeholder="Filter" className="h-8 text-xs" /></TableHead>
+              <TableHead><Input value={filters.tasks} onChange={(event) => setFilter("tasks", event.target.value)} placeholder="Filter" className="h-8 text-xs" /></TableHead>
+              <TableHead><Input value={filters.offers} onChange={(event) => setFilter("offers", event.target.value)} placeholder="Filter" className="h-8 text-xs" /></TableHead>
+              <TableHead><Input value={filters.health} onChange={(event) => setFilter("health", event.target.value)} placeholder="Filter" className="h-8 text-xs" /></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -218,6 +255,13 @@ function TeamPerformanceTable({
                 </TableCell>
               </TableRow>
             ))}
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                  No team members match the current filters.
+                </TableCell>
+              </TableRow>
+            ) : null}
           </TableBody>
         </Table>
       </CardContent>
