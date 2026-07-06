@@ -1,4 +1,4 @@
-# PipelineOS Agency Platform
+# AlignOps Agency Platform
 
 Next.js agency workspace with Prisma and PostgreSQL for real application, interview, release, task, activity, and resume-tailor data.
 

@@ -10,7 +10,7 @@ type ThemeToggleProps = {
   compact?: boolean;
 };
 
-const storageKey = "pipelineos-theme";
+const storageKey = "alignops-theme";
 
 function applyTheme(mode: ThemeMode) {
   document.documentElement.classList.toggle("dark", mode === "night");

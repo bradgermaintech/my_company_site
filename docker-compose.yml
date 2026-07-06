@@ -1,16 +1,16 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: pipelineos-db
+    container_name: alignops-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: pipelineos
+      POSTGRES_DB: alignops
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
-      - pipelineos_postgres_data:/var/lib/postgresql/data
+      - alignops_postgres_data:/var/lib/postgresql/data
 
 volumes:
-  pipelineos_postgres_data:
+  alignops_postgres_data:

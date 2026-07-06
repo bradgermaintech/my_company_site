@@ -32,7 +32,7 @@ export const users: User[] = [
   {
     id: "user-admin-1",
     name: "Maya Benton",
-    email: "maya@pipelineos.dev",
+    email: "maya@alignops.dev",
     role: "admin",
     avatar: "MB",
     active: true
@@ -40,7 +40,7 @@ export const users: User[] = [
   {
     id: "user-bidder-1",
     name: "Jon Bell",
-    email: "jon@pipelineos.dev",
+    email: "jon@alignops.dev",
     role: "bidder",
     avatar: "JB",
     active: true
@@ -48,7 +48,7 @@ export const users: User[] = [
   {
     id: "user-bidder-2",
     name: "Sana Mir",
-    email: "sana@pipelineos.dev",
+    email: "sana@alignops.dev",
     role: "bidder",
     avatar: "SM",
     active: true
@@ -56,7 +56,7 @@ export const users: User[] = [
   {
     id: "user-caller-1",
     name: "Iris Park",
-    email: "iris@pipelineos.dev",
+    email: "iris@alignops.dev",
     role: "caller",
     avatar: "IP",
     active: true
@@ -64,7 +64,7 @@ export const users: User[] = [
   {
     id: "user-caller-2",
     name: "Theo Chen",
-    email: "theo@pipelineos.dev",
+    email: "theo@alignops.dev",
     role: "caller",
     avatar: "TC",
     active: true
@@ -72,7 +72,7 @@ export const users: User[] = [
   {
     id: "user-dev-1",
     name: "Nora Singh",
-    email: "nora@pipelineos.dev",
+    email: "nora@alignops.dev",
     role: "developer",
     avatar: "NS",
     active: true
@@ -80,7 +80,7 @@ export const users: User[] = [
   {
     id: "user-dev-2",
     name: "Elias Ward",
-    email: "elias@pipelineos.dev",
+    email: "elias@alignops.dev",
     role: "developer",
     avatar: "EW",
     active: true
@@ -88,7 +88,7 @@ export const users: User[] = [
   {
     id: "user-dev-3",
     name: "Avery Brooks",
-    email: "avery@pipelineos.dev",
+    email: "avery@alignops.dev",
     role: "developer",
     avatar: "AB",
     active: true

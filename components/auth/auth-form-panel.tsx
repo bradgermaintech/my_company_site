@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Chrome, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { Chrome, Eye, EyeOff, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { getPrimaryDashboardRoute } from "@/lib/auth-routes";
 import type { UserRole } from "@/lib/models";
@@ -24,9 +24,13 @@ type AuthFormPanelProps = {
 
 type Mode = "signin" | "signup";
 
+const showGoogleSignIn = false;
+const showSelfSignup = false;
+
 export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
   const [mode, setMode] = useState<Mode>("signin");
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   async function handleGoogleLogin() {
@@ -108,16 +112,17 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
         <div className="flex items-center justify-between gap-4">
           <div>
             <CardTitle className="text-2xl text-white">
-              {mode === "signin" ? "Sign in" : "Create account"}
+              {showSelfSignup && mode === "signup" ? "Create account" : "Sign in"}
             </CardTitle>
             <CardDescription className="mt-1 text-slate-300">
-              {mode === "signin"
-                ? "Access your workspace with secure role-based authentication."
-                : "Set up your role and enter the agency workspace with a real account."}
+              {showSelfSignup && mode === "signup"
+                ? "Set up your role and enter the agency workspace with a real account."
+                : "Access your workspace with your agency email account."}
             </CardDescription>
           </div>
  
-          <div className="grid min-w-[220px] grid-cols-2 rounded-xl border border-white/10 bg-slate-900/70 p-1">
+          {showSelfSignup ? (
+            <div className="grid min-w-[220px] grid-cols-2 rounded-xl border border-white/10 bg-slate-900/70 p-1">
             <button
               type="button"
               onClick={() => setMode("signin")}
@@ -144,10 +149,12 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
             >
               Sign up
             </button>
-          </div>
+            </div>
+          ) : null}
         </div>
 
-        <div className="grid gap-3">
+        {showGoogleSignIn ? (
+          <div className="grid gap-3">
           <Button
             type="button"
             variant="outline"
@@ -163,17 +170,12 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
               Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to enable Gmail sign-in.
             </p>
           ) : null}
-        </div>
+          </div>
+        ) : null}
       </CardHeader>
 
       <CardContent>
-        <div className="mb-5 flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500">
-          <span className="h-px flex-1 bg-white/10" />
-          <span>Or use email</span>
-          <span className="h-px flex-1 bg-white/10" />
-        </div>
-
-        {mode === "signin" ? (
+        {mode === "signin" || !showSelfSignup ? (
           <form action={handleCredentialsSignIn} className="grid gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="signin-email" className="text-slate-200">
@@ -185,7 +187,8 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
                   id="signin-email"
                   name="signin-email"
                   type="email"
-                  defaultValue="maya@pipelineos.dev"
+                  autoComplete="email"
+                  placeholder="name@alignops.dev"
                   className="h-11 border-white/10 bg-white/5 pl-9 text-white placeholder:text-slate-500"
                 />
               </div>
@@ -200,10 +203,23 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
                 <Input
                   id="signin-password"
                   name="signin-password"
-                  type="password"
-                  defaultValue="pipelineos123"
-                  className="h-11 border-white/10 bg-white/5 pl-9 text-white placeholder:text-slate-500"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  className="h-11 border-white/10 bg-white/5 px-9 text-white placeholder:text-slate-500"
                 />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="absolute right-3 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center text-slate-400 transition-colors hover:text-white"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -244,7 +260,7 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
                   id="signup-email"
                   name="signup-email"
                   type="email"
-                  placeholder="avery@pipelineos.dev"
+                  placeholder="avery@alignops.dev"
                   className="h-11 border-white/10 bg-white/5 text-white placeholder:text-slate-500"
                 />
               </div>

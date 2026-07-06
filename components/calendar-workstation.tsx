@@ -40,7 +40,7 @@ import {
   type InterviewInput
 } from "@/lib/interview-schema";
 import type { Activity, Interview, InterviewStage, JobApplication, User } from "@/lib/models";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type CalendarView = "month" | "week" | "day";
 
@@ -111,6 +111,18 @@ function addDays(date: Date, days: number) {
   return next;
 }
 
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
 function isSameCalendarDay(left: Date, right: Date) {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -140,6 +152,16 @@ function formatDateTimeLabel(date: string) {
   }).format(new Date(date));
 }
 
+function formatCurrentDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
 function getInterviewOffset(interview: Interview) {
   const start = new Date(interview.startTime);
  
@@ -154,6 +176,11 @@ function getInterviewHeight(interview: Interview) {
   const end = new Date(interview.endTime).getTime();
   const durationMinutes = Math.max(30, (end - start) / (1000 * 60));
   return (durationMinutes / 60) * slotHeight;
+}
+
+function getTimeOffset(date: Date) {
+  const minutesFromStart = date.getHours() * 60 + date.getMinutes();
+  return Math.max(0, (minutesFromStart / 60) * slotHeight);
 }
 
 function formatHourLabel(hour: number) {
@@ -275,7 +302,8 @@ export function CalendarWorkstation({
   const [items, setItems] = useState<Interview[]>(initialInterviews);
  
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const [selectedInterviewId, setSelectedInterviewId] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [draggingInterviewId, setDraggingInterviewId] = useState<string | null>(null);
@@ -324,12 +352,12 @@ export function CalendarWorkstation({
   const canCreate = canCreateInterview(currentUser);
  
 
-  const baseWeekStart = useMemo(() => {
-    const reference = items[0] ? new Date(items[0].startTime) : new Date("2026-06-08T00:00:00Z");
-    return startOfWeek(reference);
-  }, [items]);
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
-  const weekStart = useMemo(() => addDays(baseWeekStart, weekOffset * 7), [baseWeekStart, weekOffset]);
+  const weekStart = useMemo(() => startOfWeek(calendarDate), [calendarDate]);
 
   const weekDays = useMemo<WeekDay[]>(
     () =>
@@ -364,9 +392,9 @@ export function CalendarWorkstation({
  
 
   const monthDays = useMemo(() => {
-    const monthStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
+    const monthStart = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
     const firstDayOffset = (monthStart.getDay() + 6) % 7;
-    const daysInMonth = new Date(weekStart.getFullYear(), weekStart.getMonth() + 1, 0).getDate();
+    const daysInMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate();
 
     return [
       ...Array.from({ length: firstDayOffset }, (_, index) => ({
@@ -375,12 +403,20 @@ export function CalendarWorkstation({
       })),
       ...Array.from({ length: daysInMonth }, (_, index) => ({
         key: `day-${index + 1}`,
-        day: new Date(weekStart.getFullYear(), weekStart.getMonth(), index + 1)
+        day: new Date(calendarDate.getFullYear(), calendarDate.getMonth(), index + 1)
       }))
     ];
-  }, [weekStart]);
+  }, [calendarDate]);
 
-  const selectedDay = weekDays.find((day) => day.key === selectedDayKey) ?? weekDays[0];
+  const selectedDay =
+    view === "day"
+      ? {
+          key: calendarDate.toISOString(),
+          label: formatDateLabel(calendarDate, { weekday: "short" }),
+          shortLabel: formatDateLabel(calendarDate, { weekday: "short" }),
+          date: calendarDate
+        }
+      : weekDays.find((day) => day.key === selectedDayKey) ?? weekDays[0];
   const selectedDayInterviews = selectedDay
     ? items
         .filter((interview) => isSameCalendarDay(new Date(interview.startTime), selectedDay.date))
@@ -462,6 +498,40 @@ export function CalendarWorkstation({
     setSelectedInterviewId(interviewId);
     setDrawerOpen(true);
     setFeedback("");
+  }
+
+  function handleSelectDay(dayKey: string) {
+    const day = weekDays.find((item) => item.key === dayKey);
+    if (day) {
+      setSelectedDayKey(day.key);
+      setCalendarDate(startOfDay(day.date));
+    }
+  }
+
+  function setActiveCalendarDate(date: Date) {
+    const next = startOfDay(date);
+    setCalendarDate(next);
+    setSelectedDayKey(next.toISOString());
+  }
+
+  function moveCalendar(direction: -1 | 1) {
+    const nextDate = (() => {
+      if (view === "month") {
+        return addMonths(calendarDate, direction);
+      }
+
+      if (view === "day") {
+        return addDays(calendarDate, direction);
+      }
+
+      return addDays(calendarDate, direction * 7);
+    })();
+
+    setActiveCalendarDate(nextDate);
+  }
+
+  function resetCalendarToToday() {
+    setActiveCalendarDate(new Date());
   }
 
   function handleCloseDrawer() {
@@ -609,6 +679,30 @@ export function CalendarWorkstation({
     });
   }
 
+  const calendarTitle =
+    view === "day"
+      ? formatDateLabel(calendarDate, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric"
+        })
+      : formatDateLabel(calendarDate, { month: "long", year: "numeric" });
+  const calendarRange =
+    view === "month"
+      ? `${formatDateLabel(new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1), {
+          month: "short",
+          day: "numeric"
+        })} to ${formatDateLabel(
+          new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0),
+          { month: "short", day: "numeric" }
+        )}`
+      : view === "day"
+        ? formatCurrentDateTime(currentTime)
+        : `${formatDateLabel(weekStart, { month: "short", day: "numeric" })} to ${formatDateLabel(addDays(weekStart, 6), { month: "short", day: "numeric" })}`;
+  const calendarModeLabel =
+    view === "month" ? "Month view" : view === "week" ? "Week planner" : "Day agenda";
+
   return (
     <>
       <Card>
@@ -664,37 +758,42 @@ export function CalendarWorkstation({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Previous week"
-                    onClick={() => setWeekOffset((current) => current - 1)}
-                  >
-                    <ChevronLeft className="size-4" aria-hidden="true" />
+                  <div className="flex overflow-hidden rounded-lg border bg-background shadow-sm">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Previous ${view}`}
+                      className="rounded-none border-r"
+                      onClick={() => moveCalendar(-1)}
+                    >
+                      <ChevronLeft className="size-4" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Next ${view}`}
+                      className="rounded-none"
+                      onClick={() => moveCalendar(1)}
+                    >
+                      <ChevronRight className="size-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                  <Button type="button" variant="outline" onClick={resetCalendarToToday}>
+                    Today
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Next week"
-                    onClick={() => setWeekOffset((current) => current + 1)}
-                  >
-                    <ChevronRight className="size-4" aria-hidden="true" />
-                  </Button>
-                  <div>
-                    <p className="text-sm font-semibold">
- 
-                      {formatDateLabel(weekStart, { month: "long", year: "numeric" })}
+                  <div className="min-w-[220px] rounded-lg border bg-background px-3 py-2 shadow-sm">
+                    <p className="text-base font-semibold leading-tight text-foreground">
+                      {calendarTitle}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDateLabel(weekStart, { month: "short", day: "numeric" })} to{" "}
-                      {formatDateLabel(addDays(weekStart, 6), { month: "short", day: "numeric" })}
+                    <p className="mt-1 text-xs font-medium text-muted-foreground">
+                      {calendarRange}
                     </p>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {view === "month" ? "Month grid" : view === "week" ? "Week planner" : "Day agenda"}
+                  {calendarModeLabel}
                 </p>
               </div>
 
@@ -725,9 +824,10 @@ export function CalendarWorkstation({
             ) : (
               <WeekGrid
                 applications={applications}
+                currentTime={currentTime}
                 interviews={items}
                 compact={view === "day"}
-                onSelectDay={setSelectedDayKey}
+                onSelectDay={handleSelectDay}
  
                 onSelectInterview={handleSelectInterview}
                 selectedDayKey={selectedDay?.key}
@@ -1309,6 +1409,7 @@ function MonthGrid({
 
 function WeekGrid({
   applications,
+  currentTime,
   interviews,
   compact,
   weekDays,
@@ -1319,6 +1420,7 @@ function WeekGrid({
   onSelectInterview
 }: {
   applications: JobApplication[];
+  currentTime: Date;
   interviews: Interview[];
   weekDays: WeekDay[];
   compact?: boolean;
@@ -1358,12 +1460,14 @@ function WeekGrid({
               : "grid-cols-[96px_repeat(7,minmax(160px,1fr))]"
           )}
         >
-          <div className="border-r bg-slate-50 dark:bg-slate-900/30">
-            <div className="h-14 border-b" />
+          <div className="sticky left-0 z-20 border-r bg-slate-50 shadow-[8px_0_18px_rgba(15,23,42,0.06)] dark:bg-slate-900/70">
+            <div className="flex h-20 items-end justify-end border-b px-4 pb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              Time
+            </div>
             {slotHours.map((hour) => (
               <div
                 key={hour}
-                className="border-b px-4 pt-2 text-right text-xs font-semibold leading-none text-slate-600 dark:text-slate-300"
+                className="border-b px-4 pt-2 text-right text-xs font-bold leading-none text-slate-700 dark:text-slate-200"
                 style={{ height: `${slotHeight}px` }}
               >
  
@@ -1378,6 +1482,7 @@ function WeekGrid({
               isSameCalendarDay(new Date(interview.startTime), day.date)
             );
             const layouts = buildDayLayout(dayInterviews);
+            const showCurrentTime = isSameCalendarDay(day.date, currentTime);
 
             return (
               <div key={day.key} className="relative border-r last:border-r-0">
@@ -1385,13 +1490,13 @@ function WeekGrid({
                   type="button"
                   onClick={() => onSelectDay(day.key)}
                   className={cn(
-                    "sticky top-0 z-10 flex h-16 w-full items-center border-b bg-white/95 px-4 text-left backdrop-blur transition-colors dark:bg-card/95",
-                    day.key === selectedDayKey && "bg-primary/8"
+                    "sticky top-0 z-10 flex h-20 w-full items-center border-b bg-white/95 px-4 text-left backdrop-blur transition-colors dark:bg-card/95",
+                    day.key === selectedDayKey && "bg-primary/10"
                   )}
                 >
                   <div>
-                    <p className="text-sm font-semibold">{day.shortLabel}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-base font-semibold text-foreground">{day.shortLabel}</p>
+                    <p className="mt-1 text-sm font-medium text-muted-foreground">
                       {formatDateLabel(day.date, { month: "short", day: "numeric" })}
                     </p>
                   </div>
@@ -1405,6 +1510,17 @@ function WeekGrid({
                       style={{ height: `${slotHeight}px` }}
                     />
                   ))}
+
+                  {showCurrentTime ? (
+                    <div
+                      className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-red-500"
+                      style={{ top: `${getTimeOffset(currentTime)}px` }}
+                    >
+                      <span className="absolute left-2 top-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white shadow-sm">
+                        Now
+                      </span>
+                    </div>
+                  ) : null}
 
  
                   {layouts.map(({ interview, offset, height, left, width }) => (

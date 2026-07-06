@@ -91,7 +91,7 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
                     </span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{currentUser?.name ?? "Pipeline User"}</p>
-                      <p className="truncate text-xs text-muted-foreground">{currentUser?.email ?? "team@pipelineos.dev"}</p>
+                      <p className="truncate text-xs text-muted-foreground">{currentUser?.email ?? "team@alignops.dev"}</p>
                     </div>
                   </div>
                 </div>

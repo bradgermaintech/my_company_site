@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarClock, CheckCircle2, Layers3, ShieldCheck } from "lucide-react";
+import { ArrowRight, CalendarClock, Layers3, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/auth";
 import { AuthFormPanel } from "@/components/auth/auth-form-panel";
@@ -71,8 +71,8 @@ export default async function LoginPage() {
                 Secure sign-in for the whole bid-to-delivery workflow.
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-8 text-slate-300 lg:text-lg">
-                Move from role preview links to a real product login with email/password,
-                Google sign-in, and workspace access that follows the authenticated user.
+                Give every employee a focused agency email sign-in with workspace access
+                that follows their authenticated role.
               </p>
             </div>
 
@@ -110,15 +110,6 @@ export default async function LoginPage() {
           <section className="flex items-center justify-center">
             <div className="w-full max-w-[560px]">
               <AuthFormPanel hasGoogleAuth={hasGoogleAuth} />
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-300 backdrop-blur">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-300" aria-hidden="true" />
-                  <p>
-                    Seeded local accounts are available right now. Use
-                    `maya@pipelineos.dev` with password `pipelineos123` for the seeded admin account.
-                  </p>
-                </div>
-              </div>
             </div>
           </section>
         </div>

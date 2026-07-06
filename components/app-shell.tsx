@@ -16,7 +16,7 @@ type AppShellProps = {
   children: React.ReactNode;
 };
 
-const storageKey = "pipelineos-sidebar-collapsed";
+const storageKey = "alignops-sidebar-collapsed";
 
 export function AppShell({ role, active, title, currentUser, children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);

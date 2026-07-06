@@ -34,11 +34,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script id="pipelineos-theme" strategy="beforeInteractive">
+        <Script id="alignops-theme" strategy="beforeInteractive">
           {`
             (function () {
               try {
-                var storedTheme = window.localStorage.getItem("pipelineos-theme");
+                var storedTheme = window.localStorage.getItem("alignops-theme");
                 var prefersNight = window.matchMedia("(prefers-color-scheme: dark)").matches;
                 var theme = storedTheme || (prefersNight ? "night" : "day");
                 document.documentElement.classList.toggle("dark", theme === "night");

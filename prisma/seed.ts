@@ -21,7 +21,7 @@ async function main() {
   await prisma.application.deleteMany();
   await prisma.user.deleteMany();
 
-  const sharedPasswordHash = await hashPassword("pipelineos123");
+  const sharedPasswordHash = await hashPassword("alignops123");
 
   await prisma.user.createMany({
     data: users.map((user) => ({

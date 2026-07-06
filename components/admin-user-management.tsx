@@ -260,7 +260,7 @@ export function AdminUserManagement({
               ) : null}
 
               <Field label="Email">
-                <Input {...createForm.register("email")} placeholder="jordan@pipelineos.dev" />
+                <Input {...createForm.register("email")} placeholder="jordan@alignops.dev" />
               </Field>
               {createForm.formState.errors.email ? (
                 <p className="text-sm text-destructive">{createForm.formState.errors.email.message}</p>

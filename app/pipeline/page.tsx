@@ -18,7 +18,7 @@ export default async function PipelinePage() {
   const currentUser = {
     id: session.user.id,
     name: session.user.name ?? "Pipeline User",
-    email: session.user.email ?? "team@pipelineos.dev",
+    email: session.user.email ?? "team@alignops.dev",
     image: session.user.image ?? null,
     role: session.user.role,
     avatar: session.user.avatar,
