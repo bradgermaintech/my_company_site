@@ -46,14 +46,27 @@ const navItems: NavItem[] = [
 
  
 export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
-  const items = role === "admin"
-    ? [
+  const items = (() => {
+    if (role === "admin") {
+      return [
         ...navItems.slice(0, 6),
         { label: "Activity", href: "/activity", icon: History, key: "activity" },
         { label: "Users", href: "/users", icon: Shield, key: "users" },
         navItems[6]
-      ]
-    : navItems;
+      ];
+    }
+
+    if (role === "bidder") {
+      return [
+        navItems[0],
+        { label: "My bids", href: "/pipeline", icon: BriefcaseBusiness, key: "pipeline" },
+        navItems[3],
+        navItems[6]
+      ];
+    }
+
+    return navItems.filter((item) => item.key !== "users" && item.key !== "activity");
+  })();
 
   return (
     <aside

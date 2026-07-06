@@ -1435,7 +1435,7 @@ function WeekGrid({
 
   return (
  
-    <div className="overflow-hidden rounded-xl border bg-white/90 shadow-sm dark:bg-card/90">
+    <div className="relative z-0 overflow-hidden rounded-xl border bg-white/90 shadow-sm dark:bg-card/90">
       {compact ? (
         <div className="border-b bg-slate-50 px-4 py-3 dark:bg-slate-900/40">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -1460,7 +1460,7 @@ function WeekGrid({
               : "grid-cols-[96px_repeat(7,minmax(160px,1fr))]"
           )}
         >
-          <div className="sticky left-0 z-20 border-r bg-slate-50 shadow-[8px_0_18px_rgba(15,23,42,0.06)] dark:bg-slate-900/70">
+          <div className="sticky left-0 z-[1] border-r bg-slate-50 shadow-[8px_0_18px_rgba(15,23,42,0.06)] dark:bg-slate-900/70">
             <div className="flex h-20 items-end justify-end border-b px-4 pb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
               Time
             </div>
@@ -1490,7 +1490,7 @@ function WeekGrid({
                   type="button"
                   onClick={() => onSelectDay(day.key)}
                   className={cn(
-                    "sticky top-0 z-10 flex h-20 w-full items-center border-b bg-white/95 px-4 text-left backdrop-blur transition-colors dark:bg-card/95",
+                    "sticky top-0 z-[2] flex h-20 w-full items-center border-b bg-white/95 px-4 text-left backdrop-blur transition-colors dark:bg-card/95",
                     day.key === selectedDayKey && "bg-primary/10"
                   )}
                 >

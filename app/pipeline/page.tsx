@@ -1,12 +1,10 @@
-import { BriefcaseBusiness, CalendarCheck, CreditCard, PackageCheck } from "lucide-react";
+import { BriefcaseBusiness } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ApplicationCrudWorkbench } from "@/components/application-crud-workbench";
-import { PipelineChart } from "@/components/pipeline-chart";
 import { StatCard } from "@/components/stat-card";
 import { requireSession } from "@/lib/auth";
 import { pipelineStatuses } from "@/lib/constants";
 import { getAgencySnapshot } from "@/lib/server-data";
-import { formatCurrency } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,24 +22,46 @@ export default async function PipelinePage() {
     avatar: session.user.avatar,
     active: true
   };
-  const pipelineData = pipelineStatuses.map((status) => ({
+  const isBidder = session.user.role === "bidder";
+  const visibleApplications = isBidder
+    ? snapshot.applications.filter((application) => application.bidderId === currentUser.id)
+    : snapshot.applications;
+  const workflowStatuses = pipelineStatuses.map((status) => ({
     name: status,
-    value: snapshot.applications.filter((application) => application.status === status).length
-  }));
-  const revenuePipeline = snapshot.releases.reduce((total, release) => total + release.amount, 0);
+    value: visibleApplications.filter((application) => application.status === status).length
+  })).filter((item) => item.value > 0 || ["Bid", "Response", "Rejected"].includes(item.name));
+  const pageTitle = isBidder ? "My bidding workflow status" : "Shared application pipeline";
 
   return (
-    <AppShell currentUser={currentUser} role={session.user.role} active="pipeline" title="Shared application pipeline">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Applications" value={snapshot.applications.length.toString()} icon={BriefcaseBusiness} tone="blue" />
-        <StatCard title="Interviews active" value={snapshot.interviews.length.toString()} icon={CalendarCheck} tone="teal" />
-        <StatCard title="Releases in motion" value={snapshot.releases.length.toString()} icon={PackageCheck} tone="amber" />
-        <StatCard title="Revenue pipeline" value={formatCurrency(revenuePipeline)} icon={CreditCard} tone="slate" />
-      </section>
-      <PipelineChart data={pipelineData} />
+    <AppShell currentUser={currentUser} role={session.user.role} active="pipeline" title={pageTitle}>
+      {isBidder ? (
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {workflowStatuses.map((item) => (
+            <StatCard
+              key={item.name}
+              title={item.name}
+              value={item.value.toString()}
+              icon={BriefcaseBusiness}
+              tone={item.name === "Response" ? "teal" : item.name === "Rejected" ? "slate" : "blue"}
+            />
+          ))}
+        </section>
+      ) : (
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {workflowStatuses.map((item) => (
+            <StatCard
+              key={item.name}
+              title={item.name}
+              value={item.value.toString()}
+              icon={BriefcaseBusiness}
+              tone={item.name === "Offer" ? "teal" : item.name === "Rejected" ? "slate" : "blue"}
+            />
+          ))}
+        </section>
+      )}
       <ApplicationCrudWorkbench
         currentUser={currentUser}
-        initialApplications={snapshot.applications}
+        initialApplications={visibleApplications}
         users={snapshot.users}
       />
     </AppShell>

@@ -1,4 +1,4 @@
-import { CalendarClock, FileText, Reply, Send, TrendingUp } from "lucide-react";
+import { FileText, Reply, Send, ShieldCheck, TrendingUp } from "lucide-react";
 import { ApplicationTable } from "@/components/application-table";
 import { BidderAnalytics } from "@/components/dashboard/bidder-analytics";
 import { ResumeTailorPanel } from "@/components/resume-tailor-panel";
@@ -40,13 +40,14 @@ export function BidderDashboard({
   const uniqueResumeVersions = new Set(
     bidderApplications.map((application) => application.resumeVersion)
   ).size;
+  const submittedBids = bidderApplications.filter((application) => application.status === "Bid").length;
 
   return (
     <div className="flex flex-col gap-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Active bids" value={bidderApplications.length.toString()} change={`${latestWeekBids} in latest week`} icon={Send} tone="blue" />
-        <StatCard title="Response rate" value={`${responseRate}%`} change={`${bidderInterviews.length} interview records`} icon={Reply} tone="teal" />
-        <StatCard title="Interviews booked" value={bidderInterviews.length.toString()} icon={CalendarClock} tone="amber" />
+        <StatCard title="Response rate" value={`${responseRate}%`} change={`${bidderInterviews.length} downstream calls`} icon={Reply} tone="teal" />
+        <StatCard title="Submitted status" value={submittedBids.toString()} icon={ShieldCheck} tone="amber" />
         <StatCard title="Resume versions" value={uniqueResumeVersions.toString()} icon={FileText} tone="slate" />
       </section>
 

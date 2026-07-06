@@ -46,7 +46,7 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b bg-white/90 backdrop-blur">
         <div className="flex flex-col gap-3 px-4 py-3 lg:px-6">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">

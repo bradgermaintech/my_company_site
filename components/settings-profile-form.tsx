@@ -1,9 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Save } from "lucide-react";
-import { useEffect } from "react";
+import { Eye, EyeOff, KeyRound, Save } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import type { UseFormRegisterReturn } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,9 +32,27 @@ const profileSchema = z.object({
   interviewAlerts: z.boolean()
 });
 
+const passwordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password."),
+    newPassword: z.string().min(10, "Use at least 10 characters."),
+    confirmPassword: z.string().min(1, "Confirm your new password.")
+  })
+  .refine((value) => value.newPassword === value.confirmPassword, {
+    message: "Passwords must match.",
+    path: ["confirmPassword"]
+  });
+
 type ProfileForm = z.infer<typeof profileSchema>;
+type PasswordForm = z.infer<typeof passwordSchema>;
 
 export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [isPasswordPending, startPasswordTransition] = useTransition();
   const {
     register,
     handleSubmit,
@@ -52,6 +71,14 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
       interviewAlerts: true
     }
   });
+  const passwordForm = useForm<PasswordForm>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      confirmPassword: "",
+      currentPassword: "",
+      newPassword: ""
+    }
+  });
 
   useEffect(() => {
     reset({
@@ -68,6 +95,40 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
 
   function onSubmit() {
     return Promise.resolve();
+  }
+
+  function updatePassword(values: PasswordForm) {
+    setPasswordFeedback(null);
+    startPasswordTransition(() => {
+      void (async () => {
+        const response = await fetch("/api/profile/password", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(values)
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setPasswordFeedback({
+            tone: "error",
+            message: payload.error ?? "Unable to update password."
+          });
+          return;
+        }
+
+        passwordForm.reset({
+          confirmPassword: "",
+          currentPassword: "",
+          newPassword: ""
+        });
+        setPasswordFeedback({
+          tone: "success",
+          message: "Password updated successfully."
+        });
+      })();
+    });
   }
 
   return (
@@ -137,6 +198,68 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
       <div className="flex flex-col gap-6">
         <Card>
           <CardHeader>
+            <CardTitle>Update password</CardTitle>
+            <CardDescription>
+              Change the password for your agency email sign-in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-4" onSubmit={passwordForm.handleSubmit(updatePassword)}>
+              <PasswordField
+                error={passwordForm.formState.errors.currentPassword?.message}
+                label="Current password"
+                registration={passwordForm.register("currentPassword")}
+                visible={passwordVisible}
+              />
+              <PasswordField
+                error={passwordForm.formState.errors.newPassword?.message}
+                label="New password"
+                registration={passwordForm.register("newPassword")}
+                visible={passwordVisible}
+              />
+              <PasswordField
+                error={passwordForm.formState.errors.confirmPassword?.message}
+                label="Confirm new password"
+                registration={passwordForm.register("confirmPassword")}
+                visible={passwordVisible}
+              />
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setPasswordVisible((current) => !current)}
+                >
+                  {passwordVisible ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                  {passwordVisible ? "Hide passwords" : "Show passwords"}
+                </Button>
+                <Button type="submit" disabled={isPasswordPending}>
+                  <KeyRound className="size-4" aria-hidden="true" />
+                  {isPasswordPending ? "Updating..." : "Update password"}
+                </Button>
+              </div>
+
+              {passwordFeedback ? (
+                <p
+                  className={
+                    passwordFeedback.tone === "success"
+                      ? "rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
+                      : "rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+                  }
+                >
+                  {passwordFeedback.message}
+                </p>
+              ) : null}
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Notification rules</CardTitle>
             <CardDescription>
               Keep important agency movement visible without flooding the team.
@@ -174,5 +297,25 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
         </Card>
       </div>
     </form>
+  );
+}
+
+function PasswordField({
+  error,
+  label,
+  registration,
+  visible
+}: {
+  error?: string;
+  label: string;
+  registration: UseFormRegisterReturn;
+  visible: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>{label}</Label>
+      <Input type={visible ? "text" : "password"} autoComplete="new-password" {...registration} />
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+    </div>
   );
 }
