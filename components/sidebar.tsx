@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  History,
   LayoutDashboard,
   Settings,
   Shield,
@@ -48,6 +49,7 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
   const items = role === "admin"
     ? [
         ...navItems.slice(0, 6),
+        { label: "Activity", href: "/activity", icon: History, key: "activity" },
         { label: "Users", href: "/users", icon: Shield, key: "users" },
         navItems[6]
       ]

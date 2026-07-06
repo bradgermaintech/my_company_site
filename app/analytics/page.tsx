@@ -24,7 +24,6 @@ export default async function AnalyticsPage() {
   return (
     <AppShell currentUser={currentUser} role={session.user.role} active="analytics" title="Agency analytics and performance">
       <AdminDashboard
-        activities={snapshot.activities}
         applications={snapshot.applications}
         developerTasks={snapshot.developerTasks}
         interviews={snapshot.interviews}

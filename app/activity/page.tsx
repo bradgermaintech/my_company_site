@@ -1,18 +1,19 @@
+import { ActivityFeed } from "@/components/activity-feed";
 import { AppShell } from "@/components/app-shell";
-import { AdminDashboard } from "@/components/dashboard/admin-dashboard";
 import { requireRole } from "@/lib/auth";
 import { getAgencySnapshot } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminDashboardPage() {
+export default async function ActivityPage() {
   const [snapshot, session] = await Promise.all([
     getAgencySnapshot(),
     requireRole("admin")
   ]);
+
   const currentUser = {
     id: session.user.id,
-    name: session.user.name ?? "Pipeline User",
+    name: session.user.name ?? "AlignOps User",
     email: session.user.email ?? "team@alignops.dev",
     image: session.user.image ?? null,
     role: session.user.role,
@@ -21,14 +22,8 @@ export default async function AdminDashboardPage() {
   };
 
   return (
-    <AppShell currentUser={currentUser} role="admin" active="dashboard" title="Agency command center">
-      <AdminDashboard
-        applications={snapshot.applications}
-        developerTasks={snapshot.developerTasks}
-        interviews={snapshot.interviews}
-        releases={snapshot.releases}
-        users={snapshot.users}
-      />
+    <AppShell currentUser={currentUser} role="admin" active="activity" title="Activity management">
+      <ActivityFeed activities={snapshot.activities} users={snapshot.users} />
     </AppShell>
   );
 }

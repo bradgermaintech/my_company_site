@@ -6,7 +6,6 @@ import {
   Percent,
   UsersRound
 } from "lucide-react";
-import { ActivityFeed } from "@/components/activity-feed";
 import { ApplicationTable } from "@/components/application-table";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { PipelineChart } from "@/components/pipeline-chart";
@@ -36,12 +35,11 @@ import {
   countInterviewsInLatestWeek
 } from "@/lib/dashboard-metrics";
  
-import type { Activity, DeveloperTask, Interview, JobApplication, Release, User } from "@/lib/models";
+import type { DeveloperTask, Interview, JobApplication, Release, User } from "@/lib/models";
 import { formatCurrency } from "@/lib/utils";
 
 type AdminDashboardProps = {
   applications: JobApplication[];
-  activities: Activity[];
   developerTasks: DeveloperTask[];
   interviews: Interview[];
   releases: Release[];
@@ -50,7 +48,6 @@ type AdminDashboardProps = {
 
 export function AdminDashboard({
   applications,
-  activities,
   developerTasks,
   interviews,
   releases,
@@ -91,9 +88,8 @@ export function AdminDashboard({
 
       <AdminFilters applications={applications} users={users} />
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-6">
         <PipelineChart data={pipelineData} />
-        <ActivityFeed activities={activities} users={users} />
       </section>
 
       <section className="grid gap-6 2xl:grid-cols-[1fr_0.9fr]">
