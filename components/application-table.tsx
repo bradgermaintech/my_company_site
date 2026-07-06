@@ -1,16 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
+  type FilterFn,
   type ColumnDef,
   type ColumnFiltersState
 } from "@tanstack/react-table";
-import { ExternalLink, SlidersHorizontal } from "lucide-react";
+import { Download, ExternalLink, SlidersHorizontal } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,54 @@ export function ApplicationTable({
   const [statusFilter, setStatusFilter] = useState<PipelineStatus | "all">("all");
   const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
 
+  const applicationSearch: FilterFn<JobApplication> = (row, _columnId, filterValue) => {
+    const query = String(filterValue ?? "").trim().toLowerCase();
+
+    if (!query) {
+      return true;
+    }
+
+    const application = row.original;
+    const bidder = usersById.get(application.bidderId);
+    const caller = usersById.get(application.callerId);
+    const developer = usersById.get(application.developerId);
+    const searchable = [
+      application.date,
+      application.jobTitle,
+      application.company,
+      application.jdLink,
+      application.resumeVersion,
+      application.status,
+      application.releaseStatus,
+      application.paymentStatus,
+      application.notes,
+      bidder?.name,
+      bidder?.email,
+      caller?.name,
+      caller?.email,
+      developer?.name,
+      developer?.email
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchable.includes(query);
+  };
+
+  const userNameFilter = useCallback<FilterFn<JobApplication>>((row, columnId, filterValue) => {
+    const query = String(filterValue ?? "").trim().toLowerCase();
+
+    if (!query) {
+      return true;
+    }
+
+    const userId = row.getValue<string>(columnId);
+    const user = usersById.get(userId);
+
+    return [user?.name, user?.email].filter(Boolean).join(" ").toLowerCase().includes(query);
+  }, [usersById]);
+
   const filteredData = useMemo(() => {
     return statusFilter === "all"
       ? data
@@ -60,6 +109,7 @@ export function ApplicationTable({
       {
         id: "datePicker",
         header: "Date picker",
+        enableColumnFilter: false,
         cell: ({ row }) => (
           <Input
             aria-label={`Follow-up date for ${row.original.company}`}
@@ -116,11 +166,13 @@ export function ApplicationTable({
       {
         accessorKey: "callerId",
         header: "Caller assigned",
+        filterFn: userNameFilter,
         cell: ({ row }) => usersById.get(row.original.callerId)?.name
       },
       {
         accessorKey: "developerId",
         header: "Developer assigned",
+        filterFn: userNameFilter,
         cell: ({ row }) => usersById.get(row.original.developerId)?.name
       },
       {
@@ -147,7 +199,7 @@ export function ApplicationTable({
         )
       }
     ],
-    [usersById]
+    [userNameFilter, usersById]
   );
 
   const table = useReactTable({
@@ -159,10 +211,61 @@ export function ApplicationTable({
     },
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
+    globalFilterFn: applicationSearch,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel()
   });
+
+  function exportFilteredRows() {
+    const visibleRows = table.getFilteredRowModel().rows.map((row) => row.original);
+    const headers = [
+      "Date",
+      "Job title",
+      "Company",
+      "JD link",
+      "Status",
+      "Resume version",
+      "Bidder",
+      "Caller",
+      "Developer",
+      "Release status",
+      "Payment status",
+      "Notes",
+      "Updated"
+    ];
+
+    const escapeCsv = (value: string | number | null | undefined) =>
+      `"${String(value ?? "").replaceAll('"', '""')}"`;
+
+    const rows = visibleRows.map((application) => [
+      application.date,
+      application.jobTitle,
+      application.company,
+      application.jdLink,
+      application.status,
+      application.resumeVersion,
+      usersById.get(application.bidderId)?.name,
+      usersById.get(application.callerId)?.name,
+      usersById.get(application.developerId)?.name,
+      application.releaseStatus,
+      application.paymentStatus,
+      application.notes,
+      application.updatedAt
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = `alignops-application-pipeline-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <Card>
@@ -194,7 +297,13 @@ export function ApplicationTable({
                 </option>
               ))}
             </Select>
-            <Button type="button" variant="outline">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={exportFilteredRows}
+              disabled={table.getFilteredRowModel().rows.length === 0}
+            >
+              <Download className="size-4" />
               Export
             </Button>
           </div>

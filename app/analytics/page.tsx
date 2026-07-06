@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell";
-import { AdminDashboard } from "@/components/dashboard/admin-dashboard";
+import { AgencyAnalyticsDashboard } from "@/components/dashboard/agency-analytics-dashboard";
 import { requireSession } from "@/lib/auth";
 import { getAgencySnapshot } from "@/lib/server-data";
 
@@ -23,9 +23,8 @@ export default async function AnalyticsPage() {
 
   return (
     <AppShell currentUser={currentUser} role={session.user.role} active="analytics" title="Agency analytics and performance">
-      <AdminDashboard
+      <AgencyAnalyticsDashboard
         applications={snapshot.applications}
-        developerTasks={snapshot.developerTasks}
         interviews={snapshot.interviews}
         releases={snapshot.releases}
         users={snapshot.users}

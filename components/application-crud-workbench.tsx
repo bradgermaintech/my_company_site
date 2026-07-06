@@ -442,17 +442,17 @@ export function ApplicationCrudWorkbench({
               </Badge>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_140px]">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_160px_140px]">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-4 top-5 size-5 text-muted-foreground" />
                 <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  className="pl-9"
+                  className="h-12 pl-12 text-base"
                   placeholder="Search title, company, notes, resume"
                 />
  
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className="mt-2 pl-1 text-xs leading-5 text-muted-foreground">
                   Search across the key application fields when you need to find one record quickly.
                 </p>
               </div>
