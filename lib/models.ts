@@ -104,3 +104,21 @@ export type Activity = {
   target: string;
   timestamp: string;
 };
+
+export type ChatConversation = {
+  id: string;
+  adminId: string;
+  memberId: string;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt?: string | null;
+};
+
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  readAt?: string | null;
+};

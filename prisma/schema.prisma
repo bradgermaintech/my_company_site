@@ -93,6 +93,9 @@ model User {
   developerTasks        DeveloperTask[]
   approvedReleases      Release[]       @relation("ReleaseApprover")
   activities            Activity[]
+  adminChatConversations ChatConversation[] @relation("ChatConversationAdmin")
+  memberChatConversations ChatConversation[] @relation("ChatConversationMember")
+  sentChatMessages      ChatMessage[]    @relation("ChatMessageSender")
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
@@ -254,4 +257,34 @@ model Activity {
   @@index([userId, timestamp])
   @@index([interviewId, timestamp])
   @@index([timestamp])
+}
+
+model ChatConversation {
+  id            String        @id
+  adminId       String
+  memberId      String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  lastMessageAt DateTime?
+  admin         User          @relation("ChatConversationAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  member        User          @relation("ChatConversationMember", fields: [memberId], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+
+  @@unique([adminId, memberId])
+  @@index([adminId, lastMessageAt])
+  @@index([memberId, lastMessageAt])
+}
+
+model ChatMessage {
+  id             String           @id
+  conversationId String
+  senderId       String
+  content        String
+  createdAt      DateTime         @default(now())
+  readAt         DateTime?
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User             @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
 }

@@ -10,6 +10,7 @@ import {
   CreditCard,
   History,
   LayoutDashboard,
+  MessageCircle,
   Settings,
   Shield,
   UsersRound
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { label: "Pipeline", href: "/pipeline", icon: BriefcaseBusiness, key: "pipeline" },
   { label: "Interviews", href: "/interviews", icon: CalendarClock, key: "interviews" },
   { label: "Analytics", href: "/analytics", icon: BarChart3, key: "analytics" },
+  { label: "Chat", href: "/chat", icon: MessageCircle, key: "chat" },
   { label: "Team", href: "/team", icon: UsersRound, key: "team" },
   { label: "Payments", href: "/payments", icon: CreditCard, key: "payments" },
   { label: "Settings", href: "/settings", icon: Settings, key: "settings" }
@@ -49,10 +51,10 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
   const items = (() => {
     if (role === "admin") {
       return [
-        ...navItems.slice(0, 6),
+        ...navItems.slice(0, 7),
         { label: "Activity", href: "/activity", icon: History, key: "activity" },
         { label: "Users", href: "/users", icon: Shield, key: "users" },
-        navItems[6]
+        navItems[7]
       ];
     }
 
@@ -61,7 +63,8 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
         navItems[0],
         { label: "My bids", href: "/pipeline", icon: BriefcaseBusiness, key: "pipeline" },
         navItems[3],
-        navItems[6]
+        navItems[4],
+        navItems[7]
       ];
     }
 
