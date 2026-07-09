@@ -132,78 +132,80 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 xl:grid-cols-[1fr_360px]">
+    <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <Card>
-        <CardHeader>
-          <CardTitle>Profile settings</CardTitle>
-          <CardDescription>
-            Manage the workspace identity and defaults visible to the agency team.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" {...register("name")} />
-              {errors.name ? <p className="text-sm text-destructive">{errors.name.message}</p> : null}
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <CardHeader>
+            <CardTitle>Profile settings</CardTitle>
+            <CardDescription>
+              Manage the workspace identity and defaults visible to the agency team.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" {...register("name")} />
+                {errors.name ? <p className="text-sm text-destructive">{errors.name.message}</p> : null}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" {...register("email")} />
+                {errors.email ? <p className="text-sm text-destructive">{errors.email.message}</p> : null}
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" {...register("email")} />
-              {errors.email ? <p className="text-sm text-destructive">{errors.email.message}</p> : null}
-            </div>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="role">Default role</Label>
-              <Select id="role" {...register("role")}>
-                <option value="admin">Admin</option>
-                <option value="bidder">Bidder</option>
-                <option value="caller">Caller</option>
-                <option value="developer">Developer</option>
-              </Select>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="role">Default role</Label>
+                <Select id="role" {...register("role")}>
+                  <option value="admin">Admin</option>
+                  <option value="bidder">Bidder</option>
+                  <option value="caller">Caller</option>
+                  <option value="developer">Developer</option>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select id="timezone" {...register("timezone")}>
+                  <option value="America/Los_Angeles">Pacific Time</option>
+                  <option value="America/Chicago">Central Time</option>
+                  <option value="America/New_York">Eastern Time</option>
+                  <option value="UTC">UTC</option>
+                </Select>
+              </div>
             </div>
+
             <div className="flex flex-col gap-2">
-              <Label htmlFor="timezone">Timezone</Label>
-              <Select id="timezone" {...register("timezone")}>
-                <option value="America/Los_Angeles">Pacific Time</option>
-                <option value="America/Chicago">Central Time</option>
-                <option value="America/New_York">Eastern Time</option>
-                <option value="UTC">UTC</option>
-              </Select>
+              <Label htmlFor="bio">Profile note</Label>
+              <Textarea id="bio" {...register("bio")} />
+              {errors.bio ? <p className="text-sm text-destructive">{errors.bio.message}</p> : null}
             </div>
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="bio">Profile note</Label>
-            <Textarea id="bio" {...register("bio")} />
-            {errors.bio ? <p className="text-sm text-destructive">{errors.bio.message}</p> : null}
-          </div>
-
-          <div className="flex justify-end">
-            <Button type="submit">
-              <Save className="size-4" aria-hidden="true" />
-              Save profile
-            </Button>
-          </div>
-          {isSubmitSuccessful ? (
-            <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-              Profile settings saved for this mock workspace.
-            </p>
-          ) : null}
-        </CardContent>
+            <div className="flex justify-end">
+              <Button type="submit">
+                <Save className="size-4" aria-hidden="true" />
+                Save profile
+              </Button>
+            </div>
+            {isSubmitSuccessful ? (
+              <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                Profile settings saved for this mock workspace.
+              </p>
+            ) : null}
+          </CardContent>
+        </form>
       </Card>
 
-      <div className="flex flex-col gap-6">
-        <Card>
+      <div className="grid gap-6 xl:grid-cols-2 2xl:flex 2xl:flex-col">
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Update password</CardTitle>
             <CardDescription>
               Change the password for your agency email sign-in.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-5">
             <form className="grid gap-4" onSubmit={passwordForm.handleSubmit(updatePassword)}>
               <PasswordField
                 error={passwordForm.formState.errors.currentPassword?.message}
@@ -224,10 +226,11 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
                 visible={passwordVisible}
               />
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <Button
                   type="button"
                   variant="ghost"
+                  className="justify-start px-2"
                   onClick={() => setPasswordVisible((current) => !current)}
                 >
                   {passwordVisible ? (
@@ -237,7 +240,7 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
                   )}
                   {passwordVisible ? "Hide passwords" : "Show passwords"}
                 </Button>
-                <Button type="submit" disabled={isPasswordPending}>
+                <Button type="submit" className="whitespace-nowrap" disabled={isPasswordPending}>
                   <KeyRound className="size-4" aria-hidden="true" />
                   {isPasswordPending ? "Updating..." : "Update password"}
                 </Button>
@@ -296,7 +299,7 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
           </CardContent>
         </Card>
       </div>
-    </form>
+    </div>
   );
 }
 

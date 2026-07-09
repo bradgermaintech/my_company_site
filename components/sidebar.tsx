@@ -105,7 +105,7 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
           <BrandLogo collapsed={collapsed} />
         </Link>
 
-        <nav className="flex flex-1 flex-col gap-1 px-4 py-5">
+        <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
           {items.map((item) => {
             const Icon = item.icon;
 
@@ -115,17 +115,17 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
                 href={item.href}
                 title={collapsed ? item.label : undefined}
                 className={cn(
-                  "relative flex items-center rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-all duration-300 ease-out hover:bg-muted hover:text-foreground",
-                  collapsed ? "justify-center px-2" : "gap-3 px-3",
+                  "relative flex items-center rounded-lg py-2.5 text-[20px] font-semibold leading-none text-muted-foreground transition-all duration-300 ease-out hover:bg-muted hover:text-foreground",
+                  collapsed ? "justify-center px-1.5" : "gap-2 px-2.5",
                   active === item.key &&
                     "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                 )}
                 >
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  <Icon className="size-6 shrink-0 stroke-[1.8]" aria-hidden="true" />
                 <span
                   className={cn(
                     "overflow-hidden whitespace-nowrap transition-all duration-300 ease-out",
-                    collapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100"
+                    collapsed ? "max-w-0 opacity-0" : "max-w-[185px] opacity-100"
                   )}
                   >
                     {item.label}

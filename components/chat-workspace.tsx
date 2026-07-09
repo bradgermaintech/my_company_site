@@ -114,6 +114,8 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [notification, setNotification] = useState("");
   const [isPending, startTransition] = useTransition();
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(() => new Set());
+  const [deleteSelectionMode, setDeleteSelectionMode] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
   const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<{ id: string; name: string; avatar: string }[]>([]);
@@ -246,6 +248,8 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     setReplyTarget(null);
     setReactionTargetId(null);
     setTypingUsers([]);
+    setDeleteSelectionMode(false);
+    setDeleteConfirmOpen(false);
     setDraft("");
     setSelectedMessageIds(new Set());
     setSelectedParticipantId(contact.participant.id);
@@ -400,18 +404,30 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     startTransition(() => {
       void (async () => {
         await deleteMessages(Array.from(selectedMessageIds));
+        setDeleteSelectionMode(false);
+        setDeleteConfirmOpen(false);
       })();
     });
   }
 
-  function deleteSingleMessage(messageId: string) {
+  function beginDeleteSelection(messageId: string) {
     if (currentUser.role !== "admin") {
       return;
     }
 
-    startTransition(() => {
-      void deleteMessages([messageId]);
+    setReactionTargetId(null);
+    setDeleteSelectionMode(true);
+    setSelectedMessageIds((current) => {
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
     });
+  }
+
+  function cancelDeleteSelection() {
+    setDeleteSelectionMode(false);
+    setDeleteConfirmOpen(false);
+    setSelectedMessageIds(new Set());
   }
 
   function reactToMessage(messageId: string, emoji: string) {
@@ -587,6 +603,33 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
         </div>
       ) : null}
 
+      {deleteConfirmOpen ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border bg-card p-5 text-card-foreground shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300">
+                <Trash2 className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Delete selected messages?</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {selectedMessageIds.size} message{selectedMessageIds.size === 1 ? "" : "s"} will be permanently removed from this conversation.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" disabled={isPending} onClick={deleteSelectedMessages}>
+                <Trash2 className="size-4" aria-hidden="true" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <aside className="border-b bg-muted/30 lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between gap-3 border-b bg-card px-4 py-3">
           <div>
@@ -727,17 +770,29 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                     ? "Admins can message admins, bidders, callers, and developers directly."
                     : "Your chat access is limited to admin conversations."}
                 </div>
-                {currentUser.role === "admin" && selectedMessageIds.size > 0 ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={deleteSelectedMessages}
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                    Delete selected ({selectedMessageIds.size})
-                  </Button>
+                {currentUser.role === "admin" && deleteSelectionMode ? (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={cancelDeleteSelection}
+                    >
+                      <X className="size-4" aria-hidden="true" />
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={isPending || selectedMessageIds.size === 0}
+                      onClick={() => setDeleteConfirmOpen(true)}
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                      Delete selected ({selectedMessageIds.size})
+                    </Button>
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -760,10 +815,10 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                       key={message.id}
                       className={cn("group/message flex items-end gap-2", mine ? "justify-end" : "justify-start")}
                     >
-                      {canAdminManage ? (
+                      {canAdminManage && deleteSelectionMode ? (
                         <label
                           className={cn(
-                            "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card opacity-70 transition-colors hover:opacity-100",
+                            "flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card opacity-80 transition-colors hover:opacity-100",
                             selected && "border-primary bg-primary text-primary-foreground"
                           )}
                           title="Select message"
@@ -774,7 +829,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                             onChange={() => toggleMessageSelection(message.id)}
                             className="sr-only"
                           />
-                          {selected ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                          {selected ? <Check className="size-2.5" aria-hidden="true" /> : null}
                         </label>
                       ) : null}
                       <div className={cn("relative max-w-[78%]", mine ? "order-first" : "")}>
@@ -817,9 +872,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                             <button
                               type="button"
                               className="rounded-full p-1.5 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
-                              aria-label="Delete message"
-                              title="Delete"
-                              onClick={() => deleteSingleMessage(message.id)}
+                              aria-label="Select messages to delete"
+                              title="Select to delete"
+                              onClick={() => beginDeleteSelection(message.id)}
                             >
                               <Trash2 className="size-4" aria-hidden="true" />
                             </button>
