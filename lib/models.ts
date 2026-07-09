@@ -26,6 +26,7 @@ export type User = {
   role: UserRole;
   avatar: string;
   active: boolean;
+  lastSeenAt?: string | null;
 };
 
 export type JobApplication = {

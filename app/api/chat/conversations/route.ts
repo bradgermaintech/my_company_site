@@ -14,8 +14,13 @@ function serializeUser(user: {
   role: "admin" | "bidder" | "caller" | "developer";
   avatar: string;
   active: boolean;
+  lastSeenAt: Date | null;
 }) {
-  return user;
+  return {
+    ...user,
+    lastSeenAt: user.lastSeenAt?.toISOString() ?? null,
+    online: user.lastSeenAt ? Date.now() - user.lastSeenAt.getTime() < 90_000 : false
+  };
 }
 
 function serializeMessage(message: {
@@ -41,12 +46,17 @@ export async function GET() {
   }
 
   const isAdmin = session.user.role === "admin";
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { lastSeenAt: new Date() }
+  });
+
   const contacts = await prisma.user.findMany({
     where: isAdmin
       ? {
           active: true,
-          role: {
-            not: "admin"
+          id: {
+            not: session.user.id
           }
         }
       : {
@@ -60,17 +70,28 @@ export async function GET() {
       email: true,
       role: true,
       avatar: true,
-      active: true
+      active: true,
+      lastSeenAt: true
     }
   });
   const contactIds = contacts.map((contact) => contact.id);
   const conversations = await prisma.chatConversation.findMany({
     where: isAdmin
       ? {
-          adminId: session.user.id,
-          memberId: {
-            in: contactIds
-          }
+          OR: [
+            {
+              adminId: session.user.id,
+              memberId: {
+                in: contactIds
+              }
+            },
+            {
+              memberId: session.user.id,
+              adminId: {
+                in: contactIds
+              }
+            }
+          ]
         }
       : {
           memberId: session.user.id,
@@ -100,7 +121,7 @@ export async function GET() {
   });
   const conversationByContactId = new Map(
     conversations.map((conversation) => [
-      isAdmin ? conversation.memberId : conversation.adminId,
+      conversation.adminId === session.user.id ? conversation.memberId : conversation.adminId,
       conversation
     ])
   );
@@ -150,13 +171,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This user is not available for chat." }, { status: 404 });
   }
 
-  if (session.user.role === "admin" && participant.role === "admin") {
-    return NextResponse.json(
-      { error: "Admin chat is only available with bidders, callers, and developers." },
-      { status: 403 }
-    );
-  }
-
   if (session.user.role !== "admin" && participant.role !== "admin") {
     return NextResponse.json(
       { error: "Team members can only chat with admins." },
@@ -164,8 +178,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const adminId = session.user.role === "admin" ? session.user.id : participant.id;
-  const memberId = session.user.role === "admin" ? participant.id : session.user.id;
+  const [adminId, memberId] =
+    session.user.role === "admin" && participant.role === "admin"
+      ? [session.user.id, participant.id].sort()
+      : [
+          session.user.role === "admin" ? session.user.id : participant.id,
+          session.user.role === "admin" ? participant.id : session.user.id
+        ];
   const conversation = await prisma.chatConversation.upsert({
     where: {
       adminId_memberId: {

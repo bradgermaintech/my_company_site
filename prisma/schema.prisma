@@ -83,6 +83,7 @@ model User {
   role                  UserRole        @default(bidder)
   avatar                String          @default("PO")
   active                Boolean         @default(true)
+  lastSeenAt            DateTime?
   accounts              Account[]
   sessions              Session[]
   bidderApplications    Application[]   @relation("ApplicationBidder")
@@ -100,6 +101,7 @@ model User {
   updatedAt             DateTime        @updatedAt
 
   @@index([role, active])
+  @@index([lastSeenAt])
 }
 
 model Account {

@@ -21,8 +21,14 @@ function normalizeTaskStatus(status: "todo" | "in_progress" | "review" | "done")
   return status === "in_progress" ? "in-progress" : status;
 }
 
-function serializeUser(user: User): User {
-  return user;
+function serializeUser(user: Omit<User, "lastSeenAt"> & { lastSeenAt?: Date | string | null }): User {
+  return {
+    ...user,
+    lastSeenAt:
+      user.lastSeenAt instanceof Date
+        ? user.lastSeenAt.toISOString()
+        : (user.lastSeenAt ?? null)
+  };
 }
 
 function serializeApplication(application: {

@@ -67,7 +67,11 @@ export async function GET(
     return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
   }
 
-  const [messages] = await Promise.all([
+  const [, messages] = await Promise.all([
+    prisma.user.update({
+      where: { id: session.user.id },
+      data: { lastSeenAt: new Date() }
+    }).then(() => null),
     prisma.chatMessage.findMany({
       where: { conversationId: conversation.id },
       include: {
@@ -131,7 +135,11 @@ export async function POST(
   }
 
   const now = new Date();
-  const [message] = await prisma.$transaction([
+  const [, message] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: session.user.id },
+      data: { lastSeenAt: now }
+    }),
     prisma.chatMessage.create({
       data: {
         id: `msg-${crypto.randomUUID()}`,

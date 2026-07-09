@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { MessageCircle, RefreshCw, SendHorizontal, ShieldCheck } from "lucide-react";
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  Circle,
+  MessageCircle,
+  RefreshCw,
+  SendHorizontal,
+  ShieldCheck
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 type ChatContact = {
   conversationId: string | null;
-  participant: User;
+  participant: User & { online?: boolean };
   lastMessage: ChatMessage | null;
   unreadCount: number;
   updatedAt: string | null;
@@ -69,8 +78,13 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [feedback, setFeedback] = useState("");
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [notification, setNotification] = useState("");
   const [isPending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const unreadSnapshotRef = useRef(0);
+  const contactsLoadedRef = useRef(false);
+  const contactsRef = useRef<ChatContact[]>([]);
+  const messageCountRef = useRef(0);
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.participant.id === selectedParticipantId) ?? null,
@@ -103,8 +117,34 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       return;
     }
 
-    setContacts(payload.contacts as ChatContact[]);
-    setSelectedParticipantId((current) => current || payload.contacts[0]?.participant.id || "");
+    const nextContacts = payload.contacts as ChatContact[];
+    const unreadTotal = nextContacts.reduce((total, contact) => total + contact.unreadCount, 0);
+
+    if (contactsLoadedRef.current && unreadTotal > unreadSnapshotRef.current) {
+      const latestUnread = nextContacts.find((contact) => contact.unreadCount > 0);
+      const message = latestUnread
+        ? `New message from ${latestUnread.participant.name}`
+        : "New chat message arrived";
+
+      setNotification(message);
+      window.setTimeout(() => setNotification(""), 4500);
+
+      if ("Notification" in window) {
+        if (Notification.permission === "granted") {
+          new Notification("AlignOps chat", {
+            body: message
+          });
+        } else if (Notification.permission === "default") {
+          void Notification.requestPermission();
+        }
+      }
+    }
+
+    unreadSnapshotRef.current = unreadTotal;
+    contactsLoadedRef.current = true;
+    contactsRef.current = nextContacts;
+    setContacts(nextContacts);
+    setSelectedParticipantId((current) => current || nextContacts[0]?.participant.id || "");
     setLoadingContacts(false);
   }, []);
 
@@ -139,7 +179,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     conversationId: string,
     { silent = false }: { silent?: boolean } = {}
   ) => {
-    if (!silent) {
+    if (!silent && messageCountRef.current === 0) {
       setLoadingMessages(true);
     }
 
@@ -154,13 +194,16 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       return;
     }
 
-    setMessages(payload.messages as ChatMessage[]);
+    const nextMessages = payload.messages as ChatMessage[];
+    messageCountRef.current = nextMessages.length;
+    setMessages(nextMessages);
     setLoadingMessages(false);
   }, []);
 
   function selectContact(contact: ChatContact) {
     setFeedback("");
     setSelectedParticipantId(contact.participant.id);
+    messageCountRef.current = 0;
     setMessages([]);
     startTransition(() => {
       void (async () => {
@@ -204,7 +247,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
         }
 
         setDraft("");
-        setMessages((current) => [...current, payload.message as ChatMessage]);
+        setMessages((current) => {
+          const nextMessages = [...current, payload.message as ChatMessage];
+          messageCountRef.current = nextMessages.length;
+          return nextMessages;
+        });
         await loadContacts({ silent: true });
       })();
     });
@@ -215,16 +262,18 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }, [loadContacts]);
 
   useEffect(() => {
-    if (!selectedContact) {
+    const contact = contactsRef.current.find((item) => item.participant.id === selectedParticipantId);
+
+    if (!contact) {
       return;
     }
 
-    void ensureConversation(selectedContact).then((conversationId) => {
+    void ensureConversation(contact).then((conversationId) => {
       if (conversationId) {
         void loadMessages(conversationId);
       }
     });
-  }, [ensureConversation, loadMessages, selectedContact]);
+  }, [ensureConversation, loadMessages, selectedParticipantId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -242,14 +291,21 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }, [messages.length]);
 
   return (
-    <section className="grid min-h-[calc(100vh-190px)] overflow-hidden rounded-xl border bg-white shadow-sm lg:grid-cols-[360px_minmax(0,1fr)]">
+    <section className="relative grid min-h-[calc(100vh-190px)] overflow-hidden rounded-xl border bg-white shadow-sm lg:grid-cols-[360px_minmax(0,1fr)]">
+      {notification ? (
+        <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-lg">
+          <Bell className="size-4 text-primary" aria-hidden="true" />
+          {notification}
+        </div>
+      ) : null}
+
       <aside className="border-b bg-slate-50/80 lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-3 border-b bg-white px-4 py-4">
+        <div className="flex items-center justify-between gap-3 border-b bg-white px-4 py-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               Secure chat
             </p>
-            <h2 className="text-lg font-semibold text-foreground">Messages</h2>
+            <h2 className="text-base font-semibold text-foreground">Messages</h2>
           </div>
           <Button
             type="button"
@@ -283,8 +339,14 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                       )}
                     >
                       <div className="flex items-start gap-3">
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
+                        <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
                           {contact.participant.avatar}
+                          <span
+                            className={cn(
+                              "absolute bottom-0 right-0 size-3 rounded-full border-2 border-white",
+                              contact.participant.online ? "bg-emerald-500" : "bg-slate-300"
+                            )}
+                          />
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
@@ -299,14 +361,25 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                             {contact.lastMessage?.content ?? contact.participant.email}
                           </p>
                           <div className="mt-2 flex items-center justify-between gap-2">
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
-                                roleTone(contact.participant.role)
-                              )}
-                            >
-                              {contact.participant.role}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
+                                  roleTone(contact.participant.role)
+                                )}
+                              >
+                                {contact.participant.role}
+                              </span>
+                              <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                                <Circle
+                                  className={cn(
+                                    "size-2 fill-current",
+                                    contact.participant.online ? "text-emerald-500" : "text-slate-300"
+                                  )}
+                                />
+                                {contact.participant.online ? "Online" : "Offline"}
+                              </span>
+                            </div>
                             {contact.unreadCount > 0 ? (
                               <Badge variant="info">{contact.unreadCount} new</Badge>
                             ) : null}
@@ -331,17 +404,23 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       <div className="flex min-h-[560px] flex-col">
         {selectedContact ? (
           <>
-            <header className="flex items-center justify-between gap-3 border-b bg-white px-5 py-4">
+            <header className="flex items-center justify-between gap-3 border-b bg-white px-5 py-3">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                   {selectedContact.participant.avatar}
+                  <span
+                    className={cn(
+                      "absolute bottom-0 right-0 size-3 rounded-full border-2 border-white",
+                      selectedContact.participant.online ? "bg-emerald-500" : "bg-slate-300"
+                    )}
+                  />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="truncate text-lg font-semibold text-foreground">
+                  <h2 className="truncate text-base font-semibold text-foreground">
                     {selectedContact.participant.name}
                   </h2>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {selectedContact.participant.email}
+                  <p className="truncate text-xs text-muted-foreground">
+                    {selectedContact.participant.online ? "Online now" : "Offline"} - {selectedContact.participant.email}
                   </p>
                 </div>
               </div>
@@ -350,18 +429,18 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               </Badge>
             </header>
 
-            <div className="border-b bg-slate-50 px-5 py-3 text-sm text-muted-foreground">
+            <div className="border-b bg-slate-50 px-5 py-2 text-xs font-medium text-muted-foreground">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
                 {currentUser.role === "admin"
-                  ? "Admins can message bidders, callers, and developers directly."
+                  ? "Admins can message admins, bidders, callers, and developers directly."
                   : "Your chat access is limited to admin conversations."}
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto bg-slate-50/60 px-4 py-5">
               <div className="mx-auto flex max-w-4xl flex-col gap-3">
-                {loadingMessages ? (
+                {loadingMessages && !messages.length ? (
                   <div className="self-center rounded-full border bg-white px-3 py-1 text-xs font-semibold text-muted-foreground">
                     Loading messages...
                   </div>
@@ -386,11 +465,18 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                         <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
                         <p
                           className={cn(
-                            "mt-2 text-[11px] font-medium",
-                            mine ? "text-primary-foreground/70" : "text-muted-foreground"
+                            "mt-2 flex items-center justify-end gap-1 text-[11px] font-medium",
+                            mine ? "text-primary-foreground/75" : "text-muted-foreground"
                           )}
                         >
                           {formatMessageTime(message.createdAt)}
+                          {mine ? (
+                            message.readAt ? (
+                              <CheckCheck className="size-3.5" aria-label="Read" />
+                            ) : (
+                              <Check className="size-3.5" aria-label="Sent" />
+                            )
+                          ) : null}
                         </p>
                       </div>
                     </div>
@@ -410,28 +496,29 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               </div>
             </div>
 
-            <footer className="border-t bg-white p-4">
+            <footer className="border-t bg-white p-3">
               {feedback ? (
                 <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
                   {feedback}
                 </p>
               ) : null}
-              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+              <div className="flex items-end gap-2">
                 <Textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
                       sendMessage();
                     }
                   }}
                   placeholder="Write a message..."
-                  className="min-h-[72px] resize-none"
+                  rows={1}
+                  className="min-h-[44px] resize-none py-3"
                 />
                 <Button
                   type="button"
-                  className="md:h-[72px] md:px-6"
+                  className="h-11 px-4"
                   disabled={!draft.trim() || isPending}
                   onClick={sendMessage}
                 >
