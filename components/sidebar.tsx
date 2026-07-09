@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
   { label: "Pipeline", href: "/pipeline", icon: BriefcaseBusiness, key: "pipeline" },
   { label: "Interviews", href: "/interviews", icon: CalendarClock, key: "interviews" },
   { label: "Analytics", href: "/analytics", icon: BarChart3, key: "analytics" },
-  { label: "Chat", href: "/chat", icon: MessageCircle, key: "chat" },
+  { label: "Messages", href: "/chat", icon: MessageCircle, key: "chat" },
   { label: "Team", href: "/team", icon: UsersRound, key: "team" },
   { label: "Payments", href: "/payments", icon: CreditCard, key: "payments" },
   { label: "Settings", href: "/settings", icon: Settings, key: "settings" }
@@ -153,7 +153,7 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
               <>
                 <p className="text-sm font-semibold text-foreground">Agency health</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  71% pipeline momentum with 4 releases in finance review.
+                  81% pipeline momentum with 4 releases in finance review.
                 </p>
               </>
             )}
