@@ -7,10 +7,13 @@ import {
   CheckCheck,
   Circle,
   MessageCircle,
+  MoreHorizontal,
   Pencil,
   RefreshCw,
+  Reply,
   SendHorizontal,
   ShieldCheck,
+  SmilePlus,
   Trash2,
   X
 } from "lucide-react";
@@ -33,11 +36,22 @@ type ChatMessage = {
   id: string;
   conversationId: string;
   senderId: string;
+  replyToId: string | null;
   content: string;
   createdAt: string;
   editedAt: string | null;
   readAt: string | null;
   sender: Pick<User, "id" | "name" | "email" | "role" | "avatar">;
+  replyTo: {
+    id: string;
+    content: string;
+    senderName: string;
+  } | null;
+  reactions: {
+    emoji: string;
+    count: number;
+    reactedByMe: boolean;
+  }[];
 };
 
 type ChatWorkspaceProps = {
@@ -62,6 +76,18 @@ function formatContactTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatTypingText(users: { name: string }[]) {
+  if (users.length === 0) {
+    return "";
+  }
+
+  if (users.length === 1) {
+    return `${users[0].name} is typing...`;
+  }
+
+  return `${users.length} people are typing...`;
+}
+
 function roleTone(role: UserRole) {
   const tones: Record<UserRole, string> = {
     admin: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950",
@@ -72,6 +98,8 @@ function roleTone(role: UserRole) {
 
   return tones[role];
 }
+
+const reactionOptions = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [contacts, setContacts] = useState<ChatContact[]>([]);
@@ -86,12 +114,17 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [notification, setNotification] = useState("");
   const [isPending, startTransition] = useTransition();
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(() => new Set());
+  const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
+  const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
+  const [typingUsers, setTypingUsers] = useState<{ id: string; name: string; avatar: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const unreadSnapshotRef = useRef(0);
   const contactsLoadedRef = useRef(false);
   const contactsRef = useRef<ChatContact[]>([]);
   const messageCountRef = useRef(0);
+  const lastTypingSentRef = useRef(0);
+  const typingStoppedRef = useRef(true);
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.participant.id === selectedParticipantId) ?? null,
@@ -210,6 +243,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   function selectContact(contact: ChatContact) {
     setFeedback("");
     setEditingMessageId(null);
+    setReplyTarget(null);
+    setReactionTargetId(null);
+    setTypingUsers([]);
     setDraft("");
     setSelectedMessageIds(new Set());
     setSelectedParticipantId(contact.participant.id);
@@ -251,7 +287,10 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ content })
+          body: JSON.stringify({
+            content,
+            replyToId: editingMessageId ? null : replyTarget?.id ?? null
+          })
         });
         const payload = await response.json();
 
@@ -262,6 +301,8 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
         setDraft("");
         setEditingMessageId(null);
+        setReplyTarget(null);
+        void updateTypingStatus(conversationId, false);
         if (composerRef.current) {
           composerRef.current.style.height = "44px";
           composerRef.current.style.overflowY = "hidden";
@@ -280,8 +321,13 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }
 
   function startEditingMessage(message: ChatMessage) {
+    if (currentUser.role !== "admin") {
+      return;
+    }
+
     setFeedback("");
     setEditingMessageId(message.id);
+    setReplyTarget(null);
     setDraft(message.content);
     window.setTimeout(() => composerRef.current?.focus(), 0);
   }
@@ -289,6 +335,17 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   function cancelEditing() {
     setEditingMessageId(null);
     setDraft("");
+  }
+
+  function startReply(message: ChatMessage) {
+    setFeedback("");
+    setEditingMessageId(null);
+    setReplyTarget(message);
+    window.setTimeout(() => composerRef.current?.focus(), 0);
+  }
+
+  function cancelReply() {
+    setReplyTarget(null);
   }
 
   function toggleMessageSelection(messageId: string) {
@@ -305,6 +362,36 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     });
   }
 
+  async function deleteMessages(ids: string[]) {
+    const response = await fetch("/api/chat/messages", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ ids })
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setFeedback(payload.error ?? "Unable to delete selected messages.");
+      return;
+    }
+
+    setMessages((current) => {
+      const deletedIds = new Set(ids);
+      const nextMessages = current.filter((message) => !deletedIds.has(message.id));
+      messageCountRef.current = nextMessages.length;
+      return nextMessages;
+    });
+    setSelectedMessageIds((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+    setFeedback(`${payload.deletedCount ?? ids.length} message${ids.length === 1 ? "" : "s"} deleted.`);
+    await loadContacts({ silent: true });
+  }
+
   function deleteSelectedMessages() {
     if (currentUser.role !== "admin" || selectedMessageIds.size === 0) {
       return;
@@ -312,31 +399,89 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     startTransition(() => {
       void (async () => {
-        const ids = Array.from(selectedMessageIds);
-        const response = await fetch("/api/chat/messages", {
-          method: "DELETE",
+        await deleteMessages(Array.from(selectedMessageIds));
+      })();
+    });
+  }
+
+  function deleteSingleMessage(messageId: string) {
+    if (currentUser.role !== "admin") {
+      return;
+    }
+
+    startTransition(() => {
+      void deleteMessages([messageId]);
+    });
+  }
+
+  function reactToMessage(messageId: string, emoji: string) {
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch(`/api/chat/messages/${messageId}/reactions`, {
+          method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ ids })
+          body: JSON.stringify({ emoji })
         });
         const payload = await response.json();
 
         if (!response.ok) {
-          setFeedback(payload.error ?? "Unable to delete selected messages.");
+          setFeedback(payload.error ?? "Unable to react to this message.");
           return;
         }
 
-        setMessages((current) => {
-          const nextMessages = current.filter((message) => !selectedMessageIds.has(message.id));
-          messageCountRef.current = nextMessages.length;
-          return nextMessages;
-        });
-        setSelectedMessageIds(new Set());
-        setFeedback(`${payload.deletedCount ?? ids.length} message${ids.length === 1 ? "" : "s"} deleted.`);
-        await loadContacts({ silent: true });
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === payload.messageId
+              ? {
+                  ...message,
+                  reactions: payload.reactions
+                }
+              : message
+          )
+        );
+        setReactionTargetId(null);
       })();
     });
+  }
+
+  const updateTypingStatus = useCallback((conversationId: string, typing: boolean) => {
+    if (!conversationId) {
+      return;
+    }
+
+    void fetch(`/api/chat/conversations/${conversationId}/typing`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ typing })
+    }).catch(() => null);
+  }, []);
+
+  function handleDraftChange(value: string) {
+    setDraft(value);
+
+    if (!selectedConversationId || editingMessageId) {
+      return;
+    }
+
+    if (!value.trim()) {
+      if (!typingStoppedRef.current) {
+        updateTypingStatus(selectedConversationId, false);
+        typingStoppedRef.current = true;
+      }
+      return;
+    }
+
+    const now = Date.now();
+
+    if (typingStoppedRef.current || now - lastTypingSentRef.current > 1600) {
+      updateTypingStatus(selectedConversationId, true);
+      lastTypingSentRef.current = now;
+      typingStoppedRef.current = false;
+    }
   }
 
   useEffect(() => {
@@ -367,6 +512,54 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     return () => window.clearInterval(interval);
   }, [loadContacts, loadMessages, selectedConversationId]);
+
+  useEffect(() => {
+    if (!selectedConversationId) {
+      setTypingUsers([]);
+      return;
+    }
+
+    const loadTypingUsers = async () => {
+      const response = await fetch(`/api/chat/conversations/${selectedConversationId}/typing`, {
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = await response.json();
+      setTypingUsers(payload.users ?? []);
+    };
+
+    void loadTypingUsers();
+    const interval = window.setInterval(() => {
+      void loadTypingUsers();
+    }, 1800);
+
+    return () => window.clearInterval(interval);
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!selectedConversationId || editingMessageId || !draft.trim()) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      updateTypingStatus(selectedConversationId, false);
+      typingStoppedRef.current = true;
+    }, 3000);
+
+    return () => window.clearTimeout(timeout);
+  }, [draft, editingMessageId, selectedConversationId, updateTypingStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (selectedConversationId && !typingStoppedRef.current) {
+        updateTypingStatus(selectedConversationId, false);
+      }
+    };
+  }, [selectedConversationId, updateTypingStatus]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -560,16 +753,17 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                 {messages.map((message) => {
                   const mine = message.senderId === currentUser.id;
                   const selected = selectedMessageIds.has(message.id);
+                  const canAdminManage = currentUser.role === "admin";
 
                   return (
                     <div
                       key={message.id}
-                      className={cn("flex items-end gap-2", mine ? "justify-end" : "justify-start")}
+                      className={cn("group/message flex items-end gap-2", mine ? "justify-end" : "justify-start")}
                     >
-                      {currentUser.role === "admin" ? (
+                      {canAdminManage ? (
                         <label
                           className={cn(
-                            "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card transition-colors",
+                            "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card opacity-70 transition-colors hover:opacity-100",
                             selected && "border-primary bg-primary text-primary-foreground"
                           )}
                           title="Select message"
@@ -583,42 +777,134 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           {selected ? <Check className="size-3.5" aria-hidden="true" /> : null}
                         </label>
                       ) : null}
-                      <div
-                        className={cn(
-                          "group max-w-[78%] rounded-2xl px-4 py-3 shadow-sm",
-                          mine
-                            ? "rounded-br-md bg-primary text-primary-foreground"
-                            : "rounded-bl-md border bg-card text-foreground",
-                          selected && "ring-2 ring-primary/40"
-                        )}
-                      >
-                        <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
-                        <p
+                      <div className={cn("relative max-w-[78%]", mine ? "order-first" : "")}>
+                        <div
                           className={cn(
-                            "mt-2 flex items-center justify-end gap-1 text-[11px] font-medium",
-                            mine ? "text-primary-foreground/75" : "text-muted-foreground"
+                            "absolute -top-8 z-10 hidden items-center gap-1 rounded-full border bg-popover p-1 text-popover-foreground shadow-lg group-hover/message:flex",
+                            mine ? "right-1" : "left-1"
                           )}
                         >
-                          {formatMessageTime(message.createdAt)}
-                          {message.editedAt ? <span>edited</span> : null}
-                          {mine ? (
-                            message.readAt ? (
-                              <CheckCheck className="size-3.5" aria-label="Read" />
-                            ) : (
-                              <Check className="size-3.5" aria-label="Sent" />
-                            )
-                          ) : null}
-                        </p>
-                        {mine ? (
-                          <div className={cn("mt-2 flex justify-end", mine ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                          <button
+                            type="button"
+                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            aria-label="React to message"
+                            title="React"
+                            onClick={() => setReactionTargetId((current) => (current === message.id ? null : message.id))}
+                          >
+                            <SmilePlus className="size-4" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            aria-label="Reply to message"
+                            title="Reply"
+                            onClick={() => startReply(message)}
+                          >
+                            <Reply className="size-4" aria-hidden="true" />
+                          </button>
+                          {canAdminManage ? (
                             <button
                               type="button"
-                              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold opacity-80 transition-opacity hover:bg-white/10 hover:opacity-100"
+                              className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              aria-label="Edit message"
+                              title="Edit"
                               onClick={() => startEditingMessage(message)}
                             >
-                              <Pencil className="size-3" aria-hidden="true" />
-                              Edit
+                              <Pencil className="size-4" aria-hidden="true" />
                             </button>
+                          ) : null}
+                          {canAdminManage ? (
+                            <button
+                              type="button"
+                              className="rounded-full p-1.5 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
+                              aria-label="Delete message"
+                              title="Delete"
+                              onClick={() => deleteSingleMessage(message.id)}
+                            >
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            </button>
+                          ) : (
+                            <MoreHorizontal className="size-4 text-muted-foreground" aria-hidden="true" />
+                          )}
+                        </div>
+
+                        {reactionTargetId === message.id ? (
+                          <div
+                            className={cn(
+                              "absolute -top-20 z-20 flex items-center gap-1 rounded-full border bg-popover px-2 py-1.5 text-popover-foreground shadow-xl",
+                              mine ? "right-0" : "left-0"
+                            )}
+                          >
+                            {reactionOptions.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                className="rounded-full px-1.5 py-1 text-lg leading-none transition-transform hover:scale-125"
+                                aria-label={`React with ${emoji}`}
+                                onClick={() => reactToMessage(message.id, emoji)}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <div
+                          className={cn(
+                            "rounded-2xl px-3 py-2 shadow-sm",
+                            mine
+                              ? "rounded-br-md bg-primary text-primary-foreground"
+                              : "rounded-bl-md border bg-card text-foreground",
+                            selected && "ring-2 ring-primary/40"
+                          )}
+                        >
+                          {message.replyTo ? (
+                            <div
+                              className={cn(
+                                "mb-2 rounded-xl border-l-2 px-2 py-1 text-xs",
+                                mine
+                                  ? "border-primary-foreground/60 bg-white/10 text-primary-foreground/85"
+                                  : "border-primary bg-muted/60 text-muted-foreground"
+                              )}
+                            >
+                              <p className="font-semibold">{message.replyTo.senderName}</p>
+                              <p className="line-clamp-1">{message.replyTo.content}</p>
+                            </div>
+                          ) : null}
+                          <p className="whitespace-pre-wrap text-sm leading-5">{message.content}</p>
+                          <p
+                            className={cn(
+                              "mt-1.5 flex items-center justify-end gap-1 text-[11px] font-medium",
+                              mine ? "text-primary-foreground/75" : "text-muted-foreground"
+                            )}
+                          >
+                            {formatMessageTime(message.createdAt)}
+                            {message.editedAt ? <span>edited</span> : null}
+                            {mine ? (
+                              message.readAt ? (
+                                <CheckCheck className="size-3.5" aria-label="Read" />
+                              ) : (
+                                <Check className="size-3.5" aria-label="Sent" />
+                              )
+                            ) : null}
+                          </p>
+                        </div>
+
+                        {message.reactions.length > 0 ? (
+                          <div className={cn("mt-1 flex flex-wrap gap-1", mine ? "justify-end" : "justify-start")}>
+                            {message.reactions.map((reaction) => (
+                              <button
+                                key={reaction.emoji}
+                                type="button"
+                                className={cn(
+                                  "rounded-full border bg-card px-2 py-0.5 text-xs font-semibold shadow-sm transition-colors",
+                                  reaction.reactedByMe && "border-primary bg-primary/10 text-primary"
+                                )}
+                                onClick={() => reactToMessage(message.id, reaction.emoji)}
+                              >
+                                {reaction.emoji} {reaction.count}
+                              </button>
+                            ))}
                           </div>
                         ) : null}
                       </div>
@@ -633,6 +919,16 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
                       Send a focused update, question, or next action. This channel stays limited to admin-member communication.
                     </p>
+                  </div>
+                ) : null}
+                {typingUsers.length > 0 ? (
+                  <div className="flex items-center gap-2 self-start rounded-full border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm">
+                    <span className="flex gap-1">
+                      <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.2s]" />
+                      <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.1s]" />
+                      <span className="size-1.5 animate-bounce rounded-full bg-primary" />
+                    </span>
+                    {formatTypingText(typingUsers)}
                   </div>
                 ) : null}
                 <div ref={bottomRef} />
@@ -654,11 +950,23 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                   </Button>
                 </div>
               ) : null}
+              {replyTarget ? (
+                <div className="mb-3 flex items-start justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">Replying to {replyTarget.sender.name}</p>
+                    <p className="line-clamp-1 text-xs text-muted-foreground">{replyTarget.content}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={cancelReply}>
+                    <X className="size-4" aria-hidden="true" />
+                    Cancel
+                  </Button>
+                </div>
+              ) : null}
               <div className="flex items-end gap-2">
                 <Textarea
                   ref={composerRef}
                   value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => handleDraftChange(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
@@ -667,7 +975,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                   }}
                   placeholder="Write a message..."
                   rows={1}
-                  className="no-scrollbar min-h-[44px] resize-none py-3"
+                  className="no-scrollbar min-h-[44px] resize-none py-2.5"
                 />
                 <Button
                   type="button"

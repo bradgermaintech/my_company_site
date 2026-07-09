@@ -11,6 +11,7 @@ function serializeMessage(message: {
   id: string;
   conversationId: string;
   senderId: string;
+  replyToId: string | null;
   content: string;
   createdAt: Date;
   editedAt: Date | null;
@@ -22,9 +23,42 @@ function serializeMessage(message: {
     role: "admin" | "bidder" | "caller" | "developer";
     avatar: string;
   };
-}) {
+  replyTo?: {
+    id: string;
+    content: string;
+    sender: {
+      name: string;
+    };
+  } | null;
+  reactions?: {
+    emoji: string;
+    userId: string;
+  }[];
+}, currentUserId: string) {
+  const reactionCounts = new Map<string, { emoji: string; count: number; reactedByMe: boolean }>();
+
+  for (const reaction of message.reactions ?? []) {
+    const current = reactionCounts.get(reaction.emoji) ?? {
+      emoji: reaction.emoji,
+      count: 0,
+      reactedByMe: false
+    };
+
+    current.count += 1;
+    current.reactedByMe ||= reaction.userId === currentUserId;
+    reactionCounts.set(reaction.emoji, current);
+  }
+
   return {
     ...message,
+    replyTo: message.replyTo
+      ? {
+          id: message.replyTo.id,
+          content: message.replyTo.content,
+          senderName: message.replyTo.sender.name
+        }
+      : null,
+    reactions: Array.from(reactionCounts.values()),
     createdAt: message.createdAt.toISOString(),
     editedAt: message.editedAt?.toISOString() ?? null,
     readAt: message.readAt?.toISOString() ?? null
@@ -41,6 +75,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Sign in to edit chat messages." }, { status: 401 });
   }
 
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Only admins can edit chat messages." }, { status: 403 });
+  }
+
   const { id } = await context.params;
   const parsed = editMessageSchema.safeParse(await request.json());
 
@@ -55,7 +93,12 @@ export async function PATCH(
     where: { id },
     select: {
       id: true,
-      senderId: true
+      conversation: {
+        select: {
+          adminId: true,
+          memberId: true
+        }
+      }
     }
   });
 
@@ -63,8 +106,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Message not found." }, { status: 404 });
   }
 
-  if (message.senderId !== session.user.id) {
-    return NextResponse.json({ error: "You can only edit messages you sent." }, { status: 403 });
+  if (message.conversation.adminId !== session.user.id && message.conversation.memberId !== session.user.id) {
+    return NextResponse.json({ error: "You cannot edit messages in this conversation." }, { status: 403 });
   }
 
   const updated = await prisma.chatMessage.update({
@@ -82,11 +125,28 @@ export async function PATCH(
           role: true,
           avatar: true
         }
+      },
+      replyTo: {
+        select: {
+          id: true,
+          content: true,
+          sender: {
+            select: {
+              name: true
+            }
+          }
+        }
+      },
+      reactions: {
+        select: {
+          emoji: true,
+          userId: true
+        }
       }
     }
   });
 
   return NextResponse.json({
-    message: serializeMessage(updated)
+    message: serializeMessage(updated, session.user.id)
   });
 }

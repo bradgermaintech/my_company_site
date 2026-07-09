@@ -119,8 +119,19 @@ export type ChatMessage = {
   id: string;
   conversationId: string;
   senderId: string;
+  replyToId?: string | null;
   content: string;
   createdAt: string;
   editedAt?: string | null;
   readAt?: string | null;
+  replyTo?: {
+    id: string;
+    content: string;
+    senderName: string;
+  } | null;
+  reactions?: {
+    emoji: string;
+    count: number;
+    reactedByMe: boolean;
+  }[];
 };

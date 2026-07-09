@@ -4,13 +4,15 @@ import { getServerAuthSession } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 const messageSchema = z.object({
-  content: z.string().trim().min(1, "Write a message first.").max(2000, "Keep messages under 2000 characters.")
+  content: z.string().trim().min(1, "Write a message first.").max(2000, "Keep messages under 2000 characters."),
+  replyToId: z.string().min(1).optional().nullable()
 });
 
 function serializeMessage(message: {
   id: string;
   conversationId: string;
   senderId: string;
+  replyToId: string | null;
   content: string;
   createdAt: Date;
   editedAt: Date | null;
@@ -22,9 +24,42 @@ function serializeMessage(message: {
     role: "admin" | "bidder" | "caller" | "developer";
     avatar: string;
   };
-}) {
+  replyTo?: {
+    id: string;
+    content: string;
+    sender: {
+      name: string;
+    };
+  } | null;
+  reactions?: {
+    emoji: string;
+    userId: string;
+  }[];
+}, currentUserId: string) {
+  const reactionCounts = new Map<string, { emoji: string; count: number; reactedByMe: boolean }>();
+
+  for (const reaction of message.reactions ?? []) {
+    const current = reactionCounts.get(reaction.emoji) ?? {
+      emoji: reaction.emoji,
+      count: 0,
+      reactedByMe: false
+    };
+
+    current.count += 1;
+    current.reactedByMe ||= reaction.userId === currentUserId;
+    reactionCounts.set(reaction.emoji, current);
+  }
+
   return {
     ...message,
+    replyTo: message.replyTo
+      ? {
+          id: message.replyTo.id,
+          content: message.replyTo.content,
+          senderName: message.replyTo.sender.name
+        }
+      : null,
+    reactions: Array.from(reactionCounts.values()),
     createdAt: message.createdAt.toISOString(),
     editedAt: message.editedAt?.toISOString() ?? null,
     readAt: message.readAt?.toISOString() ?? null
@@ -85,6 +120,23 @@ export async function GET(
             role: true,
             avatar: true
           }
+        },
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            sender: {
+              select: {
+                name: true
+              }
+            }
+          }
+        },
+        reactions: {
+          select: {
+            emoji: true,
+            userId: true
+          }
         }
       },
       orderBy: { createdAt: "asc" },
@@ -105,7 +157,7 @@ export async function GET(
   ]);
 
   return NextResponse.json({
-    messages: messages.map(serializeMessage)
+    messages: messages.map((message) => serializeMessage(message, session.user.id))
   });
 }
 
@@ -136,6 +188,20 @@ export async function POST(
     );
   }
 
+  if (parsed.data.replyToId) {
+    const replyMessage = await prisma.chatMessage.findFirst({
+      where: {
+        id: parsed.data.replyToId,
+        conversationId: conversation.id
+      },
+      select: { id: true }
+    });
+
+    if (!replyMessage) {
+      return NextResponse.json({ error: "Reply target was not found in this conversation." }, { status: 404 });
+    }
+  }
+
   const now = new Date();
   const [, message] = await prisma.$transaction([
     prisma.user.update({
@@ -147,6 +213,7 @@ export async function POST(
         id: `msg-${crypto.randomUUID()}`,
         conversationId: conversation.id,
         senderId: session.user.id,
+        replyToId: parsed.data.replyToId ?? null,
         content: parsed.data.content,
         createdAt: now
       },
@@ -158,6 +225,23 @@ export async function POST(
             email: true,
             role: true,
             avatar: true
+          }
+        },
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            sender: {
+              select: {
+                name: true
+              }
+            }
+          }
+        },
+        reactions: {
+          select: {
+            emoji: true,
+            userId: true
           }
         }
       }
@@ -171,6 +255,6 @@ export async function POST(
   ]);
 
   return NextResponse.json({
-    message: serializeMessage(message)
+    message: serializeMessage(message, session.user.id)
   });
 }
