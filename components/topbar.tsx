@@ -1,11 +1,12 @@
  
 "use client";
 
-import { Bell, HelpCircle, Search, X } from "lucide-react";
+import { HelpCircle, Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { ChatNotificationBell } from "@/components/chat-notification-bell";
 import { GettingStartedGuide } from "@/components/getting-started-guide";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -68,9 +69,7 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
               >
                 <HelpCircle className="size-4" aria-hidden="true" />
               </Button>
-              <Button variant="outline" size="icon" aria-label="Notifications">
-                <Bell className="size-4" aria-hidden="true" />
-              </Button>
+              <ChatNotificationBell />
               <SignOutButton />
             </div>
           </div>
@@ -106,9 +105,7 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
                   >
                     <HelpCircle className="size-4" aria-hidden="true" />
                   </Button>
-                  <Button variant="outline" size="icon" aria-label="Notifications">
-                    <Bell className="size-4" aria-hidden="true" />
-                  </Button>
+                  <ChatNotificationBell />
                 </div>
               </div>
 

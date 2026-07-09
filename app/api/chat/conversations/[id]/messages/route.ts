@@ -13,6 +13,7 @@ function serializeMessage(message: {
   senderId: string;
   content: string;
   createdAt: Date;
+  editedAt: Date | null;
   readAt: Date | null;
   sender: {
     id: string;
@@ -25,6 +26,7 @@ function serializeMessage(message: {
   return {
     ...message,
     createdAt: message.createdAt.toISOString(),
+    editedAt: message.editedAt?.toISOString() ?? null,
     readAt: message.readAt?.toISOString() ?? null
   };
 }

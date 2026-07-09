@@ -7,9 +7,12 @@ import {
   CheckCheck,
   Circle,
   MessageCircle,
+  Pencil,
   RefreshCw,
   SendHorizontal,
-  ShieldCheck
+  ShieldCheck,
+  Trash2,
+  X
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +35,7 @@ type ChatMessage = {
   senderId: string;
   content: string;
   createdAt: string;
+  editedAt: string | null;
   readAt: string | null;
   sender: Pick<User, "id" | "name" | "email" | "role" | "avatar">;
 };
@@ -60,10 +64,10 @@ function formatContactTime(value: string | null) {
 
 function roleTone(role: UserRole) {
   const tones: Record<UserRole, string> = {
-    admin: "bg-slate-900 text-white",
-    bidder: "bg-blue-50 text-blue-700",
-    caller: "bg-teal-50 text-teal-700",
-    developer: "bg-amber-50 text-amber-700"
+    admin: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950",
+    bidder: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200",
+    caller: "bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-200",
+    developer: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200"
   };
 
   return tones[role];
@@ -76,11 +80,14 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [notification, setNotification] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(() => new Set());
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const unreadSnapshotRef = useRef(0);
   const contactsLoadedRef = useRef(false);
   const contactsRef = useRef<ChatContact[]>([]);
@@ -202,6 +209,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
   function selectContact(contact: ChatContact) {
     setFeedback("");
+    setEditingMessageId(null);
+    setDraft("");
+    setSelectedMessageIds(new Set());
     setSelectedParticipantId(contact.participant.id);
     messageCountRef.current = 0;
     setMessages([]);
@@ -232,8 +242,12 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
           return;
         }
 
-        const response = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-          method: "POST",
+        const response = await fetch(
+          editingMessageId
+            ? `/api/chat/messages/${editingMessageId}`
+            : `/api/chat/conversations/${conversationId}/messages`,
+          {
+          method: editingMessageId ? "PATCH" : "POST",
           headers: {
             "Content-Type": "application/json"
           },
@@ -247,11 +261,79 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
         }
 
         setDraft("");
+        setEditingMessageId(null);
+        if (composerRef.current) {
+          composerRef.current.style.height = "44px";
+          composerRef.current.style.overflowY = "hidden";
+        }
         setMessages((current) => {
-          const nextMessages = [...current, payload.message as ChatMessage];
+          const message = payload.message as ChatMessage;
+          const nextMessages = editingMessageId
+            ? current.map((item) => (item.id === message.id ? message : item))
+            : [...current, message];
           messageCountRef.current = nextMessages.length;
           return nextMessages;
         });
+        await loadContacts({ silent: true });
+      })();
+    });
+  }
+
+  function startEditingMessage(message: ChatMessage) {
+    setFeedback("");
+    setEditingMessageId(message.id);
+    setDraft(message.content);
+    window.setTimeout(() => composerRef.current?.focus(), 0);
+  }
+
+  function cancelEditing() {
+    setEditingMessageId(null);
+    setDraft("");
+  }
+
+  function toggleMessageSelection(messageId: string) {
+    setSelectedMessageIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+
+      return next;
+    });
+  }
+
+  function deleteSelectedMessages() {
+    if (currentUser.role !== "admin" || selectedMessageIds.size === 0) {
+      return;
+    }
+
+    startTransition(() => {
+      void (async () => {
+        const ids = Array.from(selectedMessageIds);
+        const response = await fetch("/api/chat/messages", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ ids })
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setFeedback(payload.error ?? "Unable to delete selected messages.");
+          return;
+        }
+
+        setMessages((current) => {
+          const nextMessages = current.filter((message) => !selectedMessageIds.has(message.id));
+          messageCountRef.current = nextMessages.length;
+          return nextMessages;
+        });
+        setSelectedMessageIds(new Set());
+        setFeedback(`${payload.deletedCount ?? ids.length} message${ids.length === 1 ? "" : "s"} deleted.`);
         await loadContacts({ silent: true });
       })();
     });
@@ -290,17 +372,30 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  useEffect(() => {
+    const composer = composerRef.current;
+
+    if (!composer) {
+      return;
+    }
+
+    composer.style.height = "44px";
+    const nextHeight = Math.min(composer.scrollHeight, 144);
+    composer.style.height = `${Math.max(nextHeight, 44)}px`;
+    composer.style.overflowY = composer.scrollHeight > 144 ? "auto" : "hidden";
+  }, [draft]);
+
   return (
-    <section className="relative grid min-h-[calc(100vh-190px)] overflow-hidden rounded-xl border bg-white shadow-sm lg:grid-cols-[360px_minmax(0,1fr)]">
+    <section className="relative grid min-h-[calc(100vh-190px)] overflow-hidden rounded-xl border bg-card shadow-sm lg:grid-cols-[360px_minmax(0,1fr)]">
       {notification ? (
-        <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-lg">
+        <div className="absolute right-5 top-5 z-20 flex min-w-[280px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-xl ring-1 ring-slate-950/5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50 dark:ring-white/10">
           <Bell className="size-4 text-primary" aria-hidden="true" />
           {notification}
         </div>
       ) : null}
 
-      <aside className="border-b bg-slate-50/80 lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-3 border-b bg-white px-4 py-3">
+      <aside className="border-b bg-muted/30 lg:border-b-0 lg:border-r">
+        <div className="flex items-center justify-between gap-3 border-b bg-card px-4 py-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               Secure chat
@@ -318,7 +413,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
           </Button>
         </div>
 
-        <div className="max-h-[340px] overflow-y-auto p-3 lg:max-h-[calc(100vh-270px)]">
+        <div className="no-scrollbar max-h-[340px] overflow-y-auto p-3 lg:max-h-[calc(100vh-270px)]">
           {Object.entries(groupedContacts).map(([group, groupContacts]) => (
             <div key={group} className="mb-4">
               <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -334,16 +429,21 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                       type="button"
                       onClick={() => selectContact(contact)}
                       className={cn(
-                        "rounded-lg border bg-white p-3 text-left transition-all hover:border-primary/40 hover:shadow-sm",
-                        selected && "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/15"
+                        "relative rounded-lg border bg-card p-3 pr-16 text-left transition-all hover:border-primary/40 hover:bg-muted/35 hover:shadow-sm",
+                        selected && "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20"
                       )}
                     >
+                      {contact.unreadCount > 0 ? (
+                        <span className="absolute right-3 top-1/2 flex min-w-6 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-2 text-[11px] font-bold leading-6 text-white shadow-sm">
+                          {contact.unreadCount > 99 ? "99+" : contact.unreadCount}
+                        </span>
+                      ) : null}
                       <div className="flex items-start gap-3">
-                        <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
+                        <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
                           {contact.participant.avatar}
                           <span
                             className={cn(
-                              "absolute bottom-0 right-0 size-3 rounded-full border-2 border-white",
+                              "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
                               contact.participant.online ? "bg-emerald-500" : "bg-slate-300"
                             )}
                           />
@@ -380,9 +480,6 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                                 {contact.participant.online ? "Online" : "Offline"}
                               </span>
                             </div>
-                            {contact.unreadCount > 0 ? (
-                              <Badge variant="info">{contact.unreadCount} new</Badge>
-                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -394,7 +491,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
           ))}
 
           {!contacts.length && !loadingContacts ? (
-            <div className="rounded-lg border border-dashed bg-white p-6 text-center text-sm text-muted-foreground">
+            <div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
               No eligible chat contacts are available.
             </div>
           ) : null}
@@ -404,13 +501,13 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       <div className="flex min-h-[560px] flex-col">
         {selectedContact ? (
           <>
-            <header className="flex items-center justify-between gap-3 border-b bg-white px-5 py-3">
+            <header className="flex items-center justify-between gap-3 border-b bg-card px-5 py-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                   {selectedContact.participant.avatar}
                   <span
                     className={cn(
-                      "absolute bottom-0 right-0 size-3 rounded-full border-2 border-white",
+                      "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
                       selectedContact.participant.online ? "bg-emerald-500" : "bg-slate-300"
                     )}
                   />
@@ -429,37 +526,70 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               </Badge>
             </header>
 
-            <div className="border-b bg-slate-50 px-5 py-2 text-xs font-medium text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-                {currentUser.role === "admin"
-                  ? "Admins can message admins, bidders, callers, and developers directly."
-                  : "Your chat access is limited to admin conversations."}
+            <div className="border-b bg-muted/35 px-5 py-2 text-xs font-medium text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
+                  {currentUser.role === "admin"
+                    ? "Admins can message admins, bidders, callers, and developers directly."
+                    : "Your chat access is limited to admin conversations."}
+                </div>
+                {currentUser.role === "admin" && selectedMessageIds.size > 0 ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={isPending}
+                    onClick={deleteSelectedMessages}
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                    Delete selected ({selectedMessageIds.size})
+                  </Button>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-slate-50/60 px-4 py-5">
+            <div className="flex-1 overflow-y-auto bg-background px-4 py-5">
               <div className="mx-auto flex max-w-4xl flex-col gap-3">
                 {loadingMessages && !messages.length ? (
-                  <div className="self-center rounded-full border bg-white px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    <div className="self-center rounded-full border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground">
                     Loading messages...
                   </div>
                 ) : null}
 
                 {messages.map((message) => {
                   const mine = message.senderId === currentUser.id;
+                  const selected = selectedMessageIds.has(message.id);
 
                   return (
                     <div
                       key={message.id}
-                      className={cn("flex", mine ? "justify-end" : "justify-start")}
+                      className={cn("flex items-end gap-2", mine ? "justify-end" : "justify-start")}
                     >
+                      {currentUser.role === "admin" ? (
+                        <label
+                          className={cn(
+                            "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card transition-colors",
+                            selected && "border-primary bg-primary text-primary-foreground"
+                          )}
+                          title="Select message"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleMessageSelection(message.id)}
+                            className="sr-only"
+                          />
+                          {selected ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                        </label>
+                      ) : null}
                       <div
                         className={cn(
-                          "max-w-[78%] rounded-2xl px-4 py-3 shadow-sm",
+                          "group max-w-[78%] rounded-2xl px-4 py-3 shadow-sm",
                           mine
                             ? "rounded-br-md bg-primary text-primary-foreground"
-                            : "rounded-bl-md border bg-white text-foreground"
+                            : "rounded-bl-md border bg-card text-foreground",
+                          selected && "ring-2 ring-primary/40"
                         )}
                       >
                         <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
@@ -470,6 +600,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           )}
                         >
                           {formatMessageTime(message.createdAt)}
+                          {message.editedAt ? <span>edited</span> : null}
                           {mine ? (
                             message.readAt ? (
                               <CheckCheck className="size-3.5" aria-label="Read" />
@@ -478,13 +609,25 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                             )
                           ) : null}
                         </p>
+                        {mine ? (
+                          <div className={cn("mt-2 flex justify-end", mine ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold opacity-80 transition-opacity hover:bg-white/10 hover:opacity-100"
+                              onClick={() => startEditingMessage(message)}
+                            >
+                              <Pencil className="size-3" aria-hidden="true" />
+                              Edit
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );
                 })}
 
                 {!messages.length && !loadingMessages ? (
-                  <div className="mx-auto mt-16 max-w-md rounded-xl border bg-white p-8 text-center shadow-sm">
+                  <div className="mx-auto mt-16 max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
                     <MessageCircle className="mx-auto size-8 text-primary" aria-hidden="true" />
                     <h3 className="mt-3 font-semibold text-foreground">Start the conversation</h3>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -496,14 +639,24 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               </div>
             </div>
 
-            <footer className="border-t bg-white p-3">
+            <footer className="border-t bg-card p-3">
               {feedback ? (
-                <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-950/40 dark:text-red-200">
                   {feedback}
                 </p>
               ) : null}
+              {editingMessageId ? (
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border bg-muted/35 px-3 py-2 text-sm">
+                  <span className="font-medium text-foreground">Editing message</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={cancelEditing}>
+                    <X className="size-4" aria-hidden="true" />
+                    Cancel
+                  </Button>
+                </div>
+              ) : null}
               <div className="flex items-end gap-2">
                 <Textarea
+                  ref={composerRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -514,7 +667,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                   }}
                   placeholder="Write a message..."
                   rows={1}
-                  className="min-h-[44px] resize-none py-3"
+                  className="no-scrollbar min-h-[44px] resize-none py-3"
                 />
                 <Button
                   type="button"
@@ -523,7 +676,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                   onClick={sendMessage}
                 >
                   <SendHorizontal className="size-4" aria-hidden="true" />
-                  Send
+                  {editingMessageId ? "Save" : "Send"}
                 </Button>
               </div>
             </footer>

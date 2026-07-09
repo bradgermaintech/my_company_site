@@ -16,6 +16,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { ChatUnreadBadge } from "@/components/chat-unread-badge";
 import type { UserRole } from "@/lib/models";
 import { cn } from "@/lib/utils";
 
@@ -114,22 +115,25 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
                 href={item.href}
                 title={collapsed ? item.label : undefined}
                 className={cn(
-                  "flex items-center rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-all duration-300 ease-out hover:bg-muted hover:text-foreground",
+                  "relative flex items-center rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-all duration-300 ease-out hover:bg-muted hover:text-foreground",
                   collapsed ? "justify-center px-2" : "gap-3 px-3",
                   active === item.key &&
                     "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                 )}
-              >
-                <Icon className="size-4 shrink-0" aria-hidden="true" />
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
                 <span
                   className={cn(
                     "overflow-hidden whitespace-nowrap transition-all duration-300 ease-out",
                     collapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100"
                   )}
-                >
-                  {item.label}
-                </span>
-              </Link>
+                  >
+                    {item.label}
+                  </span>
+                  {item.key === "chat" ? (
+                    <ChatUnreadBadge className={collapsed ? "right-1 top-1" : "right-3 top-1/2 -translate-y-1/2"} />
+                  ) : null}
+                </Link>
             );
           })}
         </nav>

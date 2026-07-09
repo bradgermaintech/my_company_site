@@ -121,5 +121,6 @@ export type ChatMessage = {
   senderId: string;
   content: string;
   createdAt: string;
+  editedAt?: string | null;
   readAt?: string | null;
 };
