@@ -28,6 +28,10 @@ export function userChannel(userId: string) {
   return `private-user-${userId}`;
 }
 
+export function groupChannel(groupId: string) {
+  return `private-group-${groupId}`;
+}
+
 function maskValue(value?: string) {
   if (!value) {
     return "missing";

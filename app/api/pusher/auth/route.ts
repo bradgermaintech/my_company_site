@@ -26,6 +26,24 @@ export async function POST(request: Request) {
     return NextResponse.json(pusherServer.authorizeChannel(socketId, channelName));
   }
 
+  const groupId = channelName.replace(/^private-group-/, "");
+
+  if (groupId && groupId !== channelName) {
+    const groupMembership = await prisma.chatGroupMember.findFirst({
+      where: {
+        groupId,
+        userId: session.user.id
+      },
+      select: { id: true }
+    });
+
+    if (!groupMembership) {
+      return NextResponse.json({ error: "Channel is not available." }, { status: 403 });
+    }
+
+    return NextResponse.json(pusherServer.authorizeChannel(socketId, channelName));
+  }
+
   const conversationId = channelName.replace(/^private-chat-/, "");
 
   if (!conversationId || conversationId === channelName) {

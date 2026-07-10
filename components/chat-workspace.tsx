@@ -2,40 +2,64 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
+  ArrowLeft,
   Bell,
   Check,
   CheckCheck,
   Circle,
+  Folder,
+  Image as ImageIcon,
+  Link2,
   MessageCircle,
   MoreHorizontal,
   Pencil,
+  Plus,
   RefreshCw,
   Reply,
   SendHorizontal,
   ShieldCheck,
   SmilePlus,
   Trash2,
+  Users,
   X
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { roleLabels } from "@/lib/constants";
 import { getPusherClient } from "@/lib/pusher-client";
 import type { User, UserRole } from "@/lib/models";
 import { cn } from "@/lib/utils";
 
+type ChatParticipant = User & {
+  online?: boolean;
+  lastSeenAt?: string | null;
+};
+
 type ChatContact = {
   conversationId: string | null;
-  participant: User & { online?: boolean };
+  participant: ChatParticipant;
   lastMessage: ChatMessage | null;
   unreadCount: number;
   updatedAt: string | null;
 };
 
+type ChatGroup = {
+  id: string;
+  name: string;
+  unreadCount: number;
+  updatedAt: string | null;
+  lastMessage: ChatMessage | null;
+  members: ChatParticipant[];
+  memberCount: number;
+  createdById: string;
+};
+
 type ChatMessage = {
   id: string;
-  conversationId: string;
+  conversationId?: string | null;
+  groupId?: string | null;
   senderId: string;
   replyToId: string | null;
   content: string;
@@ -67,6 +91,14 @@ type ChatReadEvent = {
   conversationId: string;
   readCount: number;
 };
+
+type ChatGroupUpdateEvent = {
+  groupId: string;
+  senderId?: string;
+};
+
+type ThreadKind = "direct" | "group";
+type GroupPanelTab = "members" | "media" | "files" | "links";
 
 type ChatWorkspaceProps = {
   currentUser: User;
@@ -102,6 +134,36 @@ function formatTypingText(users: { name: string }[]) {
   return `${users.length} people are typing...`;
 }
 
+function formatLastSeen(value?: string | null, online?: boolean) {
+  if (online) {
+    return "online";
+  }
+
+  if (!value) {
+    return "offline";
+  }
+
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
+
+  if (diffMinutes < 60) {
+    return `last seen ${diffMinutes} min ago`;
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `last seen ${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
+
+  return `last seen ${new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date)}`;
+}
+
 function roleTone(role: UserRole) {
   const tones: Record<UserRole, string> = {
     manager: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950",
@@ -117,7 +179,11 @@ const reactionOptions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E
 
 export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [contacts, setContacts] = useState<ChatContact[]>([]);
+  const [groups, setGroups] = useState<ChatGroup[]>([]);
+  const [eligibleMembers, setEligibleMembers] = useState<ChatParticipant[]>([]);
+  const [selectedThreadKind, setSelectedThreadKind] = useState<ThreadKind>("direct");
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -134,6 +200,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
   const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<{ id: string; name: string; avatar: string }[]>([]);
+  const [groupCreateOpen, setGroupCreateOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupMemberIds, setGroupMemberIds] = useState<Set<string>>(() => new Set());
+  const [groupPanelOpen, setGroupPanelOpen] = useState(false);
+  const [groupPanelTab, setGroupPanelTab] = useState<GroupPanelTab>("members");
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const unreadSnapshotRef = useRef(0);
@@ -143,11 +214,17 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const lastTypingSentRef = useRef(0);
   const typingStoppedRef = useRef(true);
   const typingTimeoutsRef = useRef<Record<string, number>>({});
+  const activeThreadRef = useRef("");
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.participant.id === selectedParticipantId) ?? null,
     [contacts, selectedParticipantId]
   );
+  const selectedGroup = useMemo(
+    () => groups.find((group) => group.id === selectedGroupId) ?? null,
+    [groups, selectedGroupId]
+  );
+  const isGroupThread = selectedThreadKind === "group";
   const groupedContacts = useMemo(() => {
     const groups: Record<string, ChatContact[]> = {};
 
@@ -158,6 +235,15 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     return groups;
   }, [contacts]);
+  const sortedGroups = useMemo(
+    () =>
+      [...groups].sort((left, right) => {
+        const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
+        const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
+        return rightTime - leftTime;
+      }),
+    [groups]
+  );
 
   const upsertMessage = useCallback((nextMessage: ChatMessage) => {
     setMessages((current) => {
@@ -286,6 +372,37 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     await loadContacts({ silent: true });
   }, [loadContacts]);
 
+  const loadGroups = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) {
+      setLoadingContacts(true);
+    }
+
+    const response = await fetch("/api/chat/groups", {
+      cache: "no-store"
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setFeedback(payload.error ?? "Unable to load group chats.");
+      setLoadingContacts(false);
+      return;
+    }
+
+    setGroups(payload.groups as ChatGroup[]);
+    setEligibleMembers((payload.eligibleMembers ?? []) as (User & { online?: boolean })[]);
+    if (!silent) {
+      setLoadingContacts(false);
+    }
+  }, []);
+
+  const refreshGroupsWithoutRealtime = useCallback(async () => {
+    if (getPusherClient()) {
+      return;
+    }
+
+    await loadGroups({ silent: true });
+  }, [loadGroups]);
+
   const ensureConversation = useCallback(async (contact: ChatContact) => {
     if (contact.conversationId) {
       setSelectedConversationId(contact.conversationId);
@@ -315,7 +432,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
   const loadMessages = useCallback(async (
     conversationId: string,
-    { silent = false }: { silent?: boolean } = {}
+    { silent = false, expectedThread }: { silent?: boolean; expectedThread?: string } = {}
   ) => {
     if (!silent && messageCountRef.current === 0) {
       setLoadingMessages(true);
@@ -328,7 +445,52 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     if (!response.ok) {
       setFeedback(payload.error ?? "Unable to load messages.");
-      setLoadingMessages(false);
+      if (!expectedThread || activeThreadRef.current === expectedThread) {
+        setLoadingMessages(false);
+      }
+      return;
+    }
+
+    if (expectedThread && activeThreadRef.current !== expectedThread) {
+      return;
+    }
+
+    const nextMessages = payload.messages as ChatMessage[];
+    messageCountRef.current = nextMessages.length;
+    setMessages(nextMessages);
+    setLoadingMessages(false);
+
+    if ((payload.readCount ?? 0) > 0) {
+      window.dispatchEvent(new CustomEvent("alignops-chat-read", {
+        detail: {
+          readCount: payload.readCount
+        }
+      }));
+    }
+  }, []);
+
+  const loadGroupMessages = useCallback(async (
+    groupId: string,
+    { silent = false, expectedThread }: { silent?: boolean; expectedThread?: string } = {}
+  ) => {
+    if (!silent && messageCountRef.current === 0) {
+      setLoadingMessages(true);
+    }
+
+    const response = await fetch(`/api/chat/groups/${groupId}/messages`, {
+      cache: "no-store"
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setFeedback(payload.error ?? "Unable to load group messages.");
+      if (!expectedThread || activeThreadRef.current === expectedThread) {
+        setLoadingMessages(false);
+      }
+      return;
+    }
+
+    if (expectedThread && activeThreadRef.current !== expectedThread) {
       return;
     }
 
@@ -352,6 +514,12 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     }).catch(() => null);
   }, []);
 
+  const markGroupRead = useCallback((groupId: string) => {
+    void fetch(`/api/chat/groups/${groupId}/read`, {
+      method: "POST"
+    }).catch(() => null);
+  }, []);
+
   const loadTypingUsers = useCallback(async (conversationId: string) => {
     const response = await fetch(`/api/chat/conversations/${conversationId}/typing`, {
       cache: "no-store"
@@ -365,7 +533,22 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     setTypingUsers(payload.users ?? []);
   }, []);
 
-  function selectContact(contact: ChatContact) {
+  const loadGroupTypingUsers = useCallback(async (groupId: string) => {
+    const response = await fetch(`/api/chat/groups/${groupId}/typing`, {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json();
+    setTypingUsers(payload.users ?? []);
+  }, []);
+
+  const selectContact = useCallback(async (contact: ChatContact) => {
+    const nextThread = `direct:${contact.participant.id}`;
+    activeThreadRef.current = nextThread;
     setFeedback("");
     setEditingMessageId(null);
     setReplyTarget(null);
@@ -376,6 +559,12 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     setDraft("");
     setSelectedMessageIds(new Set());
     setSelectedParticipantId(contact.participant.id);
+    setSelectedThreadKind("direct");
+    setSelectedGroupId("");
+    setGroupPanelOpen(false);
+    setLoadingMessages(true);
+    setMessages([]);
+    messageCountRef.current = 0;
     if (contact.unreadCount > 0) {
       window.dispatchEvent(new CustomEvent("alignops-chat-read", {
         detail: {
@@ -396,38 +585,147 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       contactsRef.current = nextContacts;
       return nextContacts;
     });
-    messageCountRef.current = 0;
+    const conversationId = contact.conversationId ?? (await ensureConversation(contact));
+
+    if (!conversationId || activeThreadRef.current !== nextThread) {
+      if (activeThreadRef.current === nextThread) {
+        setLoadingMessages(false);
+      }
+      return;
+    }
+
+    setSelectedConversationId(conversationId);
+    await loadMessages(conversationId, { expectedThread: nextThread });
+  }, [ensureConversation, loadMessages]);
+
+  const selectGroup = useCallback(async (group: ChatGroup) => {
+    const nextThread = `group:${group.id}`;
+    activeThreadRef.current = nextThread;
+    setFeedback("");
+    setEditingMessageId(null);
+    setReplyTarget(null);
+    setReactionTargetId(null);
+    setTypingUsers([]);
+    setDeleteSelectionMode(false);
+    setDeleteConfirmOpen(false);
+    setDraft("");
+    setSelectedMessageIds(new Set());
+    setSelectedThreadKind("group");
+    setSelectedGroupId(group.id);
+    setGroupPanelOpen(false);
+    setSelectedParticipantId("");
+    setSelectedConversationId(null);
+    setLoadingMessages(true);
     setMessages([]);
+    messageCountRef.current = 0;
+    if (group.unreadCount > 0) {
+      window.dispatchEvent(new CustomEvent("alignops-chat-read", {
+        detail: {
+          readCount: group.unreadCount
+        }
+      }));
+    }
+    setGroups((current) =>
+      current.map((item) =>
+        item.id === group.id
+          ? {
+              ...item,
+              unreadCount: 0
+            }
+          : item
+      )
+    );
+    await loadGroupMessages(group.id, { expectedThread: nextThread });
+  }, [loadGroupMessages]);
+
+  function toggleGroupMember(userId: string) {
+    setGroupMemberIds((current) => {
+      const next = new Set(current);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
   }
 
-  function sendMessage() {
-    const content = draft.trim();
+  function createGroup() {
+    const name = groupName.trim();
+    const memberIds = Array.from(groupMemberIds);
 
-    if (!content || !selectedContact) {
+    if (!name || memberIds.length === 0) {
+      setFeedback("Add a group name and choose at least one member.");
       return;
     }
 
     startTransition(() => {
       void (async () => {
-        const conversationId =
-          selectedConversationId ?? (await ensureConversation(selectedContact));
+        const response = await fetch("/api/chat/groups", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ name, memberIds })
+        });
+        const payload = await response.json();
 
-        if (!conversationId) {
+        if (!response.ok) {
+          setFeedback(payload.error ?? "Unable to create the group chat.");
           return;
         }
 
-        const response = await fetch(
-          editingMessageId
+        const nextGroup = payload.group as ChatGroup;
+        setGroups((current) => [nextGroup, ...current.filter((group) => group.id !== nextGroup.id)]);
+        setGroupCreateOpen(false);
+        setGroupName("");
+        setGroupMemberIds(new Set());
+        await selectGroup(nextGroup);
+        setFeedback(`Group "${nextGroup.name}" is ready.`);
+        await refreshGroupsWithoutRealtime();
+      })();
+    });
+  }
+
+  function sendMessage() {
+    const content = draft.trim();
+
+    if (!content || (!selectedContact && !selectedGroup)) {
+      return;
+    }
+
+    startTransition(() => {
+      void (async () => {
+        let url = "";
+        let method: "POST" | "PATCH" = "POST";
+
+        if (isGroupThread) {
+          if (!selectedGroupId) {
+            return;
+          }
+          url = `/api/chat/groups/${selectedGroupId}/messages`;
+        } else {
+          const conversationId =
+            selectedConversationId ?? (await ensureConversation(selectedContact!));
+
+          if (!conversationId) {
+            return;
+          }
+
+          url = editingMessageId
             ? `/api/chat/messages/${editingMessageId}`
-            : `/api/chat/conversations/${conversationId}/messages`,
-          {
-          method: editingMessageId ? "PATCH" : "POST",
+            : `/api/chat/conversations/${conversationId}/messages`;
+          method = editingMessageId ? "PATCH" : "POST";
+        }
+
+        const response = await fetch(url, {
+          method,
           headers: {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
             content,
-            replyToId: editingMessageId ? null : replyTarget?.id ?? null
+            replyToId: !isGroupThread && editingMessageId ? null : replyTarget?.id ?? null
           })
         });
         const payload = await response.json();
@@ -440,19 +738,27 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
         setDraft("");
         setEditingMessageId(null);
         setReplyTarget(null);
-        void updateTypingStatus(conversationId, false);
+        if (isGroupThread) {
+          void updateGroupTypingStatus(selectedGroupId, false);
+        } else if (selectedConversationId) {
+          void updateTypingStatus(selectedConversationId, false);
+        }
         if (composerRef.current) {
           composerRef.current.style.height = "44px";
           composerRef.current.style.overflowY = "hidden";
         }
         upsertMessage(payload.message as ChatMessage);
-        await refreshContactsWithoutRealtime();
+        if (isGroupThread) {
+          await refreshGroupsWithoutRealtime();
+        } else {
+          await refreshContactsWithoutRealtime();
+        }
       })();
     });
   }
 
   function startEditingMessage(message: ChatMessage) {
-    if (currentUser.role !== "manager") {
+    if (currentUser.role !== "manager" || isGroupThread) {
       return;
     }
 
@@ -528,7 +834,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }
 
   function beginDeleteSelection(messageId: string) {
-    if (currentUser.role !== "manager") {
+    if (currentUser.role !== "manager" || isGroupThread) {
       return;
     }
 
@@ -548,6 +854,10 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }
 
   function reactToMessage(messageId: string, emoji: string) {
+    if (isGroupThread) {
+      return;
+    }
+
     startTransition(() => {
       void (async () => {
         const response = await fetch(`/api/chat/messages/${messageId}/reactions`, {
@@ -593,16 +903,34 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     }).catch(() => null);
   }, []);
 
+  const updateGroupTypingStatus = useCallback((groupId: string, typing: boolean) => {
+    if (!groupId) {
+      return;
+    }
+
+    void fetch(`/api/chat/groups/${groupId}/typing`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ typing })
+    }).catch(() => null);
+  }, []);
+
   function handleDraftChange(value: string) {
     setDraft(value);
 
-    if (!selectedConversationId || editingMessageId) {
+    if ((!selectedConversationId && !selectedGroupId) || editingMessageId) {
       return;
     }
 
     if (!value.trim()) {
       if (!typingStoppedRef.current) {
-        updateTypingStatus(selectedConversationId, false);
+        if (isGroupThread) {
+          updateGroupTypingStatus(selectedGroupId, false);
+        } else if (selectedConversationId) {
+          updateTypingStatus(selectedConversationId, false);
+        }
         typingStoppedRef.current = true;
       }
       return;
@@ -611,17 +939,65 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     const now = Date.now();
 
     if (typingStoppedRef.current || now - lastTypingSentRef.current > 1600) {
-      updateTypingStatus(selectedConversationId, true);
+      if (isGroupThread) {
+        updateGroupTypingStatus(selectedGroupId, true);
+      } else if (selectedConversationId) {
+        updateTypingStatus(selectedConversationId, true);
+      }
       lastTypingSentRef.current = now;
       typingStoppedRef.current = false;
     }
   }
 
   useEffect(() => {
-    void loadContacts();
-  }, [loadContacts]);
+    void Promise.all([loadContacts(), loadGroups()]);
+  }, [loadContacts, loadGroups]);
 
   useEffect(() => {
+    if (selectedThreadKind !== "group") {
+      setGroupPanelOpen(false);
+      setGroupPanelTab("members");
+    }
+  }, [selectedThreadKind]);
+
+  useEffect(() => {
+    if (selectedThreadKind === "group" && selectedGroupId && selectedGroup) {
+      return;
+    }
+
+    if (selectedThreadKind === "direct" && selectedParticipantId && selectedContact) {
+      return;
+    }
+
+    if (sortedGroups.length > 0 && !selectedParticipantId && !selectedGroupId) {
+      void selectGroup(sortedGroups[0]);
+      return;
+    }
+
+    if (contacts.length > 0 && !selectedParticipantId && !selectedGroupId) {
+      void selectContact(contacts[0]);
+    }
+  }, [
+    contacts,
+    selectedContact,
+    selectedGroup,
+    selectedGroupId,
+    selectedParticipantId,
+    selectContact,
+    selectGroup,
+    selectedThreadKind,
+    sortedGroups
+  ]);
+
+  useEffect(() => {
+    if (selectedThreadKind === "group") {
+      if (selectedGroupId) {
+        activeThreadRef.current = `group:${selectedGroupId}`;
+        void loadGroupMessages(selectedGroupId, { expectedThread: `group:${selectedGroupId}` });
+      }
+      return;
+    }
+
     const contact = contactsRef.current.find((item) => item.participant.id === selectedParticipantId);
 
     if (!contact) {
@@ -630,10 +1006,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     void ensureConversation(contact).then((conversationId) => {
       if (conversationId) {
-        void loadMessages(conversationId);
+        activeThreadRef.current = `direct:${contact.participant.id}`;
+        void loadMessages(conversationId, { expectedThread: `direct:${contact.participant.id}` });
       }
     });
-  }, [ensureConversation, loadMessages, selectedParticipantId]);
+  }, [ensureConversation, loadGroupMessages, loadMessages, selectedGroupId, selectedParticipantId, selectedThreadKind]);
 
   useEffect(() => {
     const pusher = getPusherClient();
@@ -649,18 +1026,33 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     const channel = pusher.subscribe(channelName);
     const updateContacts = (payload: ChatContactEvent) => applyContactEvent(payload);
     const updateReadState = (payload: ChatReadEvent) => applyReadEvent(payload);
+    const updateGroups = (payload: ChatGroupUpdateEvent) => {
+      if (payload.senderId && payload.senderId !== currentUser.id && payload.groupId !== selectedGroupId) {
+        setNotification("New group message arrived");
+        window.setTimeout(() => setNotification(""), 4500);
+      }
+
+      void loadGroups({ silent: true });
+    };
 
     channel.bind("chat:contact-updated", updateContacts);
     channel.bind("chat:read", updateReadState);
+    channel.bind("group:updated", updateGroups);
 
     return () => {
       channel.unbind("chat:contact-updated", updateContacts);
       channel.unbind("chat:read", updateReadState);
+      channel.unbind("group:updated", updateGroups);
     };
-  }, [applyContactEvent, applyReadEvent, currentUser.id]);
+  }, [applyContactEvent, applyReadEvent, currentUser.id, loadGroups, selectedGroupId]);
 
   useEffect(() => {
-    if (!selectedConversationId) {
+    if (selectedThreadKind === "group" && !selectedGroupId) {
+      setTypingUsers([]);
+      return;
+    }
+
+    if (selectedThreadKind === "direct" && !selectedConversationId) {
       setTypingUsers([]);
       return;
     }
@@ -669,10 +1061,19 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     if (!pusher) {
       setRealtimeIssue("Realtime is disabled locally because NEXT_PUBLIC_PUSHER_KEY is missing. Using slower fallback refresh.");
-      void loadTypingUsers(selectedConversationId);
+      if (selectedThreadKind === "group") {
+        void loadGroupTypingUsers(selectedGroupId);
+      } else {
+        void loadTypingUsers(selectedConversationId!);
+      }
       const interval = window.setInterval(() => {
-        void loadMessages(selectedConversationId, { silent: true });
-        void loadTypingUsers(selectedConversationId);
+        if (selectedThreadKind === "group") {
+          void loadGroupMessages(selectedGroupId, { silent: true });
+          void loadGroupTypingUsers(selectedGroupId);
+        } else {
+          void loadMessages(selectedConversationId!, { silent: true });
+          void loadTypingUsers(selectedConversationId!);
+        }
       }, 5000);
 
       return () => window.clearInterval(interval);
@@ -680,14 +1081,20 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     setRealtimeIssue("");
 
-    const channelName = `private-chat-${selectedConversationId}`;
+    const channelName = selectedThreadKind === "group"
+      ? `private-group-${selectedGroupId}`
+      : `private-chat-${selectedConversationId}`;
     const channel = pusher.subscribe(channelName);
 
     const handleNewMessage = (payload: { message: ChatMessage }) => {
       upsertMessage(payload.message);
 
       if (payload.message.senderId !== currentUser.id) {
-        markConversationRead(payload.message.conversationId);
+        if (selectedThreadKind === "group") {
+          markGroupRead(selectedGroupId);
+        } else if (payload.message.conversationId) {
+          markConversationRead(payload.message.conversationId);
+        }
       }
     };
     const handleUpdatedMessage = (payload: { message: ChatMessage }) => {
@@ -753,11 +1160,15 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     };
 
     channel.bind("message:new", handleNewMessage);
-    channel.bind("message:updated", handleUpdatedMessage);
-    channel.bind("message:deleted", handleDeletedMessage);
-    channel.bind("message:reaction-updated", handleReactionUpdated);
+    if (selectedThreadKind === "direct") {
+      channel.bind("message:updated", handleUpdatedMessage);
+      channel.bind("message:deleted", handleDeletedMessage);
+      channel.bind("message:reaction-updated", handleReactionUpdated);
+    }
     channel.bind("typing:update", handleTypingUpdate);
-    channel.bind("message:read", handleMessageRead);
+    if (selectedThreadKind === "direct") {
+      channel.bind("message:read", handleMessageRead);
+    }
     channel.bind("pusher:subscription_error", () => {
       setRealtimeIssue("Realtime channel authorization failed. Check Pusher env vars and restart the dev server.");
     });
@@ -770,11 +1181,15 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     return () => {
       channel.unbind("message:new", handleNewMessage);
-      channel.unbind("message:updated", handleUpdatedMessage);
-      channel.unbind("message:deleted", handleDeletedMessage);
-      channel.unbind("message:reaction-updated", handleReactionUpdated);
+      if (selectedThreadKind === "direct") {
+        channel.unbind("message:updated", handleUpdatedMessage);
+        channel.unbind("message:deleted", handleDeletedMessage);
+        channel.unbind("message:reaction-updated", handleReactionUpdated);
+      }
       channel.unbind("typing:update", handleTypingUpdate);
-      channel.unbind("message:read", handleMessageRead);
+      if (selectedThreadKind === "direct") {
+        channel.unbind("message:read", handleMessageRead);
+      }
       Object.values(typingTimeoutsRef.current).forEach((timeout) => window.clearTimeout(timeout));
       typingTimeoutsRef.current = {};
       pusher.connection.unbind("unavailable");
@@ -783,35 +1198,46 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     };
   }, [
     currentUser.id,
+    loadGroupMessages,
+    loadGroupTypingUsers,
     loadMessages,
     loadTypingUsers,
+    markGroupRead,
     normalizeReactions,
     removeMessages,
     markConversationRead,
+    selectedGroupId,
+    selectedThreadKind,
     selectedConversationId,
     upsertMessage
   ]);
 
   useEffect(() => {
-    if (!selectedConversationId || editingMessageId || !draft.trim()) {
+    if (((selectedThreadKind === "direct" && !selectedConversationId) || (selectedThreadKind === "group" && !selectedGroupId)) || editingMessageId || !draft.trim()) {
       return;
     }
 
     const timeout = window.setTimeout(() => {
-      updateTypingStatus(selectedConversationId, false);
+      if (selectedThreadKind === "group") {
+        updateGroupTypingStatus(selectedGroupId, false);
+      } else if (selectedConversationId) {
+        updateTypingStatus(selectedConversationId, false);
+      }
       typingStoppedRef.current = true;
     }, 3000);
 
     return () => window.clearTimeout(timeout);
-  }, [draft, editingMessageId, selectedConversationId, updateTypingStatus]);
+  }, [draft, editingMessageId, selectedConversationId, selectedGroupId, selectedThreadKind, updateGroupTypingStatus, updateTypingStatus]);
 
   useEffect(() => {
     return () => {
-      if (selectedConversationId && !typingStoppedRef.current) {
+      if (selectedThreadKind === "group" && selectedGroupId && !typingStoppedRef.current) {
+        updateGroupTypingStatus(selectedGroupId, false);
+      } else if (selectedConversationId && !typingStoppedRef.current) {
         updateTypingStatus(selectedConversationId, false);
       }
     };
-  }, [selectedConversationId, updateTypingStatus]);
+  }, [selectedConversationId, selectedGroupId, selectedThreadKind, updateGroupTypingStatus, updateTypingStatus]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -866,6 +1292,89 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
         </div>
       ) : null}
 
+      {groupCreateOpen ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border bg-card p-5 text-card-foreground shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Manager action
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-foreground">Create group chat</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Select the exact team members who should participate in this room.
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setGroupCreateOpen(false)}>
+                <X className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-foreground" htmlFor="group-name">
+                  Group name
+                </label>
+                <Input
+                  id="group-name"
+                  value={groupName}
+                  onChange={(event) => setGroupName(event.target.value)}
+                  placeholder="Engineering interview pod"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-foreground">Members</p>
+                <div className="max-h-72 overflow-y-auto rounded-xl border bg-muted/20 p-2">
+                  <div className="grid gap-2">
+                    {eligibleMembers.map((member) => {
+                      const selected = groupMemberIds.has(member.id);
+
+                      return (
+                        <label
+                          key={member.id}
+                          className={cn(
+                            "flex cursor-pointer items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/40 hover:bg-muted/35",
+                            selected && "border-primary bg-primary/10"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleGroupMember(member.id)}
+                            className="size-4 accent-primary"
+                          />
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
+                            {member.avatar}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium text-foreground">{member.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                          </div>
+                          <Badge variant="secondary" className="capitalize">
+                            {member.role}
+                          </Badge>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setGroupCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" disabled={isPending} onClick={createGroup}>
+                <Plus className="size-4" aria-hidden="true" />
+                Create group
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <aside className="border-b bg-muted/30 lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between gap-3 border-b bg-card px-4 py-3">
           <div>
@@ -874,18 +1383,99 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
             </p>
             <h2 className="text-base font-semibold text-foreground">Messages</h2>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="Refresh conversations"
-            onClick={() => void loadContacts()}
-          >
-            <RefreshCw className={cn("size-4", loadingContacts && "animate-spin")} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {currentUser.role === "manager" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setGroupCreateOpen(true)}
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Group
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Refresh conversations"
+              onClick={() => void Promise.all([loadContacts(), loadGroups()])}
+            >
+              <RefreshCw className={cn("size-4", loadingContacts && "animate-spin")} />
+            </Button>
+          </div>
         </div>
 
         <div className="no-scrollbar max-h-[340px] overflow-y-auto p-3 lg:max-h-[calc(100vh-270px)]">
+          {sortedGroups.length > 0 ? (
+            <div className="mb-4">
+              <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Groups
+              </p>
+              <div className="grid gap-2">
+                {sortedGroups.map((group) => {
+                  const selected = selectedThreadKind === "group" && selectedGroupId === group.id;
+                  const visibleMembers = group.members.slice(0, 3);
+
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => void selectGroup(group)}
+                      className={cn(
+                        "relative rounded-lg border bg-card p-3 pr-16 text-left transition-all hover:border-primary/40 hover:bg-muted/35 hover:shadow-sm",
+                        selected && "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20"
+                      )}
+                    >
+                      {group.unreadCount > 0 ? (
+                        <span className="absolute right-3 top-1/2 flex min-w-6 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-2 text-[11px] font-bold leading-6 text-white shadow-sm">
+                          {group.unreadCount > 99 ? "99+" : group.unreadCount}
+                        </span>
+                      ) : null}
+                      <div className="flex items-start gap-3">
+                        <div className="relative flex h-10 w-12 shrink-0 items-center">
+                          {visibleMembers.length > 0 ? (
+                            visibleMembers.map((member, index) => (
+                              <span
+                                key={member.id}
+                                className="absolute flex size-9 items-center justify-center rounded-full border-2 border-card bg-muted text-[11px] font-bold text-foreground shadow-sm"
+                                style={{ left: `${index * 16}px`, zIndex: visibleMembers.length - index }}
+                              >
+                                {member.avatar}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                              <Users className="size-4" aria-hidden="true" />
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate font-semibold text-foreground">{group.name}</p>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {formatContactTime(group.updatedAt)}
+                            </span>
+                          </div>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {group.lastMessage?.content ?? `${group.memberCount} selected members`}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2 text-[11px]">
+                            <Badge variant="secondary">Group</Badge>
+                            <span className="font-medium text-muted-foreground">
+                              {group.memberCount} members
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {Object.entries(groupedContacts).map(([group, groupContacts]) => (
             <div key={group} className="mb-4">
               <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -893,13 +1483,14 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               </p>
               <div className="grid gap-2">
                 {groupContacts.map((contact) => {
-                  const selected = selectedParticipantId === contact.participant.id;
+                  const selected =
+                    selectedThreadKind === "direct" && selectedParticipantId === contact.participant.id;
 
                   return (
                     <button
                       key={contact.participant.id}
                       type="button"
-                      onClick={() => selectContact(contact)}
+                      onClick={() => void selectContact(contact)}
                       className={cn(
                         "relative rounded-lg border bg-card p-3 pr-16 text-left transition-all hover:border-primary/40 hover:bg-muted/35 hover:shadow-sm",
                         selected && "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20"
@@ -962,51 +1553,90 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
             </div>
           ))}
 
-          {!contacts.length && !loadingContacts ? (
+          {!contacts.length && !sortedGroups.length && !loadingContacts ? (
             <div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
-              No eligible chat contacts are available.
+              No direct or group chats are available yet.
             </div>
           ) : null}
         </div>
       </aside>
 
-      <div className="flex min-h-[560px] flex-col">
-        {selectedContact ? (
+      <div
+        className={cn(
+          "grid min-h-[560px] min-w-0 grid-cols-1",
+          selectedGroup && groupPanelOpen
+            ? "lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]"
+            : "lg:grid-cols-1"
+        )}
+      >
+        {selectedContact || selectedGroup ? (
           <>
+            <div className="flex min-h-[560px] min-w-0 flex-col border-r">
             <header className="flex items-center justify-between gap-3 border-b bg-card px-5 py-3">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                  {selectedContact.participant.avatar}
-                  <span
-                    className={cn(
-                      "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
-                      selectedContact.participant.online ? "bg-emerald-500" : "bg-slate-300"
-                    )}
-                  />
-                </span>
+                {selectedGroup ? (
+                  <div className="relative flex h-11 w-14 shrink-0 items-center">
+                    {selectedGroup.members.slice(0, 3).map((member, index) => (
+                      <span
+                        key={member.id}
+                        className="absolute flex size-10 items-center justify-center rounded-full border-2 border-card bg-muted text-xs font-bold text-foreground shadow-sm"
+                        style={{ left: `${index * 14}px`, zIndex: 4 - index }}
+                      >
+                        {member.avatar}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    {selectedContact?.participant.avatar}
+                    <span
+                      className={cn(
+                        "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
+                        selectedContact?.participant.online ? "bg-emerald-500" : "bg-slate-300"
+                      )}
+                    />
+                  </span>
+                )}
                 <div className="min-w-0">
                   <h2 className="truncate text-base font-semibold text-foreground">
-                    {selectedContact.participant.name}
+                    {selectedGroup ? selectedGroup.name : selectedContact?.participant.name}
                   </h2>
                   <p className="truncate text-xs text-muted-foreground">
-                    {selectedContact.participant.online ? "Online now" : "Offline"} - {selectedContact.participant.email}
+                    {selectedGroup
+                      ? `${selectedGroup.memberCount} members`
+                      : `${selectedContact?.participant.online ? "Online now" : "Offline"} - ${selectedContact?.participant.email}`}
                   </p>
                 </div>
               </div>
-              <Badge variant="secondary" className="capitalize">
-                {selectedContact.participant.role}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {selectedGroup ? (
+                  <Button
+                    type="button"
+                    variant={groupPanelOpen ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setGroupPanelOpen((current) => !current)}
+                  >
+                    <Users className="size-4" aria-hidden="true" />
+                    Members
+                  </Button>
+                ) : null}
+                <Badge variant="secondary" className="capitalize">
+                  {selectedGroup ? "Group" : selectedContact?.participant.role}
+                </Badge>
+              </div>
             </header>
 
             <div className="border-b bg-muted/35 px-5 py-2 text-xs font-medium text-muted-foreground">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-                  {currentUser.role === "manager"
-                    ? "Managers can message managers, bidders, callers, and developers directly."
-                    : "Your chat access is limited to manager conversations."}
+                  {selectedGroup
+                    ? "Managers create private group rooms and only invited members can participate in them."
+                    : currentUser.role === "manager"
+                      ? "Managers can message managers, bidders, callers, and developers directly."
+                      : "Your chat access is limited to manager conversations."}
                 </div>
-                {currentUser.role === "manager" && deleteSelectionMode ? (
+                {currentUser.role === "manager" && deleteSelectionMode && !selectedGroup ? (
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
@@ -1044,7 +1674,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                 {messages.map((message) => {
                   const mine = message.senderId === currentUser.id;
                   const selected = selectedMessageIds.has(message.id);
-                  const canManagerManage = currentUser.role === "manager";
+                  const canManagerManage = currentUser.role === "manager" && !selectedGroup;
 
                   return (
                     <div
@@ -1068,6 +1698,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           {selected ? <Check className="size-2.5" aria-hidden="true" /> : null}
                         </label>
                       ) : null}
+                      {!mine && selectedGroup ? (
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold text-foreground">
+                          {message.sender.avatar}
+                        </span>
+                      ) : null}
                       <div className={cn("relative max-w-[78%]", mine ? "order-first" : "")}>
                         <div
                           className={cn(
@@ -1075,15 +1710,17 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                             mine ? "right-1" : "left-1"
                           )}
                         >
-                          <button
-                            type="button"
-                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            aria-label="React to message"
-                            title="React"
-                            onClick={() => setReactionTargetId((current) => (current === message.id ? null : message.id))}
-                          >
-                            <SmilePlus className="size-4" aria-hidden="true" />
-                          </button>
+                          {!selectedGroup ? (
+                            <button
+                              type="button"
+                              className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              aria-label="React to message"
+                              title="React"
+                              onClick={() => setReactionTargetId((current) => (current === message.id ? null : message.id))}
+                            >
+                              <SmilePlus className="size-4" aria-hidden="true" />
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1119,7 +1756,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           )}
                         </div>
 
-                        {reactionTargetId === message.id ? (
+                        {!selectedGroup && reactionTargetId === message.id ? (
                           <div
                             className={cn(
                               "absolute -top-20 z-20 flex items-center gap-1 rounded-full border bg-popover px-2 py-1.5 text-popover-foreground shadow-xl",
@@ -1140,6 +1777,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           </div>
                         ) : null}
 
+                        {!mine && selectedGroup ? (
+                          <p className="mb-1 pl-1 text-xs font-semibold text-primary">
+                            {message.sender.name}
+                          </p>
+                        ) : null}
                         <div
                           className={cn(
                             "rounded-2xl px-3 py-2 shadow-sm",
@@ -1171,7 +1813,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           >
                             {formatMessageTime(message.createdAt)}
                             {message.editedAt ? <span>edited</span> : null}
-                            {mine ? (
+                            {!selectedGroup && mine ? (
                               message.readAt ? (
                                 <CheckCheck className="size-3.5" aria-label="Read" />
                               ) : (
@@ -1181,7 +1823,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           </p>
                         </div>
 
-                        {message.reactions.length > 0 ? (
+                        {!selectedGroup && message.reactions.length > 0 ? (
                           <div className={cn("mt-1 flex flex-wrap gap-1", mine ? "justify-end" : "justify-start")}>
                             {message.reactions.map((reaction) => (
                               <button
@@ -1208,7 +1850,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                     <MessageCircle className="mx-auto size-8 text-primary" aria-hidden="true" />
                     <h3 className="mt-3 font-semibold text-foreground">Start the conversation</h3>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Send a focused update, question, or next action. This channel stays limited to manager-member communication.
+                      {selectedGroup
+                        ? "This group room is limited to the invited members selected by the manager."
+                        : "Send a focused update, question, or next action. This channel stays limited to manager-member communication."}
                     </p>
                   </div>
                 ) : null}
@@ -1269,7 +1913,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                       sendMessage();
                     }
                   }}
-                  placeholder="Write a message..."
+                  placeholder={selectedGroup ? "Write a group message..." : "Write a message..."}
                   rows={1}
                   className="no-scrollbar min-h-[44px] resize-none py-2.5"
                 />
@@ -1284,6 +1928,124 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                 </Button>
               </div>
             </footer>
+            </div>
+            {selectedGroup && groupPanelOpen ? (
+              <aside className="hidden min-h-[560px] flex-col border-l bg-card lg:flex">
+                <div className="flex items-center gap-2 border-b px-4 py-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-9"
+                    onClick={() => setGroupPanelOpen(false)}
+                  >
+                    <ArrowLeft className="size-4" aria-hidden="true" />
+                  </Button>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-foreground">Members</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {selectedGroup.name} · {selectedGroup.memberCount} members
+                    </p>
+                  </div>
+                </div>
+                <div className="border-b px-4 pt-3">
+                  <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted/40 p-1">
+                    {([
+                      ["members", "Members"],
+                      ["media", "Media"],
+                      ["files", "Files"],
+                      ["links", "Links"]
+                    ] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setGroupPanelTab(key)}
+                        className={cn(
+                          "rounded-lg px-2 py-2 text-xs font-semibold transition-colors",
+                          groupPanelTab === key
+                            ? "bg-card text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4">
+                  {groupPanelTab === "members" ? (
+                    <div className="space-y-2">
+                      {selectedGroup.members.map((member) => (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => {
+                            if (member.id === currentUser.id) {
+                              return;
+                            }
+
+                            const existingContact = contacts.find((contact) => contact.participant.id === member.id);
+                            if (existingContact) {
+                              void selectContact(existingContact);
+                            }
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
+                            member.id === currentUser.id
+                              ? "cursor-default bg-muted/25"
+                              : "hover:border-primary/40 hover:bg-muted/35"
+                          )}
+                        >
+                          <span className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
+                            {member.avatar}
+                            <span
+                              className={cn(
+                                "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
+                                member.online ? "bg-emerald-500" : "bg-slate-300"
+                              )}
+                            />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="truncate font-semibold text-foreground">{member.name}</p>
+                              <span
+                                className={cn(
+                                  "rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
+                                  roleTone(member.role)
+                                )}
+                              >
+                                {member.id === selectedGroup.createdById ? "Owner" : member.role}
+                              </span>
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {formatLastSeen(member.lastSeenAt, member.online)}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed p-6 text-center">
+                      {groupPanelTab === "media" ? (
+                        <ImageIcon className="mx-auto size-6 text-muted-foreground" aria-hidden="true" />
+                      ) : null}
+                      {groupPanelTab === "files" ? (
+                        <Folder className="mx-auto size-6 text-muted-foreground" aria-hidden="true" />
+                      ) : null}
+                      {groupPanelTab === "links" ? (
+                        <Link2 className="mx-auto size-6 text-muted-foreground" aria-hidden="true" />
+                      ) : null}
+                      <p className="mt-3 text-sm font-semibold text-foreground">
+                        {groupPanelTab[0].toUpperCase() + groupPanelTab.slice(1)} view
+                      </p>
+                      <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                        This tab is ready for the next pass. Members is live now and wired for use.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </aside>
+            ) : null}
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center p-8">

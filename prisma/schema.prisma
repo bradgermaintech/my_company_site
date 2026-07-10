@@ -96,6 +96,11 @@ model User {
   activities            Activity[]
   managerChatConversations ChatConversation[] @relation("ChatConversationManager")
   memberChatConversations ChatConversation[] @relation("ChatConversationMember")
+  createdChatGroups     ChatGroup[]     @relation("ChatGroupCreator")
+  chatGroupMemberships  ChatGroupMember[]
+  sentChatGroupMessages ChatGroupMessage[] @relation("ChatGroupMessageSender")
+  chatGroupReactions    ChatGroupReaction[] @relation("ChatGroupReactionUser")
+  chatGroupTypingStates ChatGroupTyping[] @relation("ChatGroupTypingUser")
   sentChatMessages      ChatMessage[]    @relation("ChatMessageSender")
   chatReactions         ChatReaction[]    @relation("ChatReactionUser")
   chatTypingStates      ChatTyping[]      @relation("ChatTypingUser")
@@ -324,4 +329,80 @@ model ChatTyping {
 
   @@unique([conversationId, userId])
   @@index([conversationId, updatedAt])
+}
+
+model ChatGroup {
+  id             String            @id
+  name           String
+  createdById    String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  lastMessageAt  DateTime?
+  creator        User              @relation("ChatGroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members        ChatGroupMember[]
+  messages       ChatGroupMessage[]
+  typingStates   ChatGroupTyping[]
+
+  @@index([createdById, updatedAt])
+  @@index([lastMessageAt])
+}
+
+model ChatGroupMember {
+  id         String    @id
+  groupId    String
+  userId     String
+  addedById  String
+  joinedAt   DateTime  @default(now())
+  lastReadAt DateTime?
+  group      ChatGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId, joinedAt])
+  @@index([groupId, lastReadAt])
+}
+
+model ChatGroupMessage {
+  id         String             @id
+  groupId     String
+  senderId    String
+  replyToId   String?
+  content     String
+  createdAt   DateTime          @default(now())
+  editedAt    DateTime?
+  group       ChatGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender      User              @relation("ChatGroupMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo     ChatGroupMessage? @relation("ChatGroupMessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     ChatGroupMessage[] @relation("ChatGroupMessageReplies")
+  reactions   ChatGroupReaction[]
+
+  @@index([groupId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([replyToId])
+}
+
+model ChatGroupReaction {
+  id        String           @id
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime         @default(now())
+  message   ChatGroupMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User             @relation("ChatGroupReactionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+}
+
+model ChatGroupTyping {
+  id        String    @id
+  groupId   String
+  userId    String
+  updatedAt DateTime  @updatedAt
+  group     ChatGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User      @relation("ChatGroupTypingUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId, updatedAt])
 }
