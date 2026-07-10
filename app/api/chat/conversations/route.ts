@@ -11,7 +11,7 @@ function serializeUser(user: {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "bidder" | "caller" | "developer";
+  role: "manager" | "bidder" | "caller" | "developer";
   avatar: string;
   active: boolean;
   lastSeenAt: Date | null;
@@ -38,6 +38,15 @@ function serializeMessage(message: {
   };
 }
 
+async function touchCurrentUser(userId: string) {
+  const result = await prisma.user.updateMany({
+    where: { id: userId, active: true },
+    data: { lastSeenAt: new Date() }
+  });
+
+  return result.count > 0;
+}
+
 export async function GET() {
   const session = await getServerAuthSession();
 
@@ -45,14 +54,18 @@ export async function GET() {
     return NextResponse.json({ error: "Sign in to use chat." }, { status: 401 });
   }
 
-  const isAdmin = session.user.role === "admin";
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { lastSeenAt: new Date() }
-  });
+  const isManager = session.user.role === "manager";
+  const hasCurrentUser = await touchCurrentUser(session.user.id);
+
+  if (!hasCurrentUser) {
+    return NextResponse.json(
+      { error: "Your session is out of date. Please sign in again." },
+      { status: 401 }
+    );
+  }
 
   const contacts = await prisma.user.findMany({
-    where: isAdmin
+    where: isManager
       ? {
           active: true,
           id: {
@@ -61,7 +74,7 @@ export async function GET() {
         }
       : {
           active: true,
-          role: "admin"
+          role: "manager"
         },
     orderBy: [{ role: "asc" }, { name: "asc" }],
     select: {
@@ -74,20 +87,22 @@ export async function GET() {
       lastSeenAt: true
     }
   });
+
   const contactIds = contacts.map((contact) => contact.id);
+
   const conversations = await prisma.chatConversation.findMany({
-    where: isAdmin
+    where: isManager
       ? {
           OR: [
             {
-              adminId: session.user.id,
+              managerId: session.user.id,
               memberId: {
                 in: contactIds
               }
             },
             {
               memberId: session.user.id,
-              adminId: {
+              managerId: {
                 in: contactIds
               }
             }
@@ -95,7 +110,7 @@ export async function GET() {
         }
       : {
           memberId: session.user.id,
-          adminId: {
+          managerId: {
             in: contactIds
           }
         },
@@ -119,9 +134,10 @@ export async function GET() {
     },
     orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }]
   });
+
   const conversationByContactId = new Map(
     conversations.map((conversation) => [
-      conversation.adminId === session.user.id ? conversation.memberId : conversation.adminId,
+      conversation.managerId === session.user.id ? conversation.memberId : conversation.managerId,
       conversation
     ])
   );
@@ -152,6 +168,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in to start a chat." }, { status: 401 });
   }
 
+  const hasCurrentUser = await prisma.user.count({
+    where: { id: session.user.id, active: true }
+  });
+
+  if (!hasCurrentUser) {
+    return NextResponse.json(
+      { error: "Your session is out of date. Please sign in again." },
+      { status: 401 }
+    );
+  }
+
   const parsed = conversationSchema.safeParse(await request.json());
 
   if (!parsed.success) {
@@ -171,30 +198,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This user is not available for chat." }, { status: 404 });
   }
 
-  if (session.user.role !== "admin" && participant.role !== "admin") {
+  if (session.user.role !== "manager" && participant.role !== "manager") {
     return NextResponse.json(
-      { error: "Team members can only chat with admins." },
+      { error: "Team members can only chat with managers." },
       { status: 403 }
     );
   }
 
-  const [adminId, memberId] =
-    session.user.role === "admin" && participant.role === "admin"
+  const [managerId, memberId] =
+    session.user.role === "manager" && participant.role === "manager"
       ? [session.user.id, participant.id].sort()
       : [
-          session.user.role === "admin" ? session.user.id : participant.id,
-          session.user.role === "admin" ? participant.id : session.user.id
+          session.user.role === "manager" ? session.user.id : participant.id,
+          session.user.role === "manager" ? participant.id : session.user.id
         ];
+
   const conversation = await prisma.chatConversation.upsert({
     where: {
-      adminId_memberId: {
-        adminId,
+      managerId_memberId: {
+        managerId,
         memberId
       }
     },
     create: {
       id: `chat-${crypto.randomUUID()}`,
-      adminId,
+      managerId,
       memberId
     },
     update: {}

@@ -9,7 +9,7 @@ const updateUserSchema = z
     type: z.enum(["profile", "reset-password"]).optional(),
     name: z.string().min(2).max(80).optional(),
     email: z.string().email().optional(),
-    role: z.enum(["admin", "bidder", "caller", "developer"]).optional(),
+    role: z.enum(["manager", "bidder", "caller", "developer"]).optional(),
     active: z.boolean().optional()
   })
   .refine((value) => Object.keys(value).length > 0, {
@@ -35,7 +35,7 @@ function serializeUser(user: {
   name: string;
   email: string;
   image: string | null;
-  role: "admin" | "bidder" | "caller" | "developer";
+  role: "manager" | "bidder" | "caller" | "developer";
   avatar: string;
   active: boolean;
 }) {
@@ -52,8 +52,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Sign in to manage users." }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ error: "Only admins can update users." }, { status: 403 });
+  if (session.user.role !== "manager") {
+    return NextResponse.json({ error: "Only managers can update users." }, { status: 403 });
   }
 
   const { id } = await context.params;
@@ -115,27 +115,27 @@ export async function PATCH(
 
   if (session.user.id === user.id && input.active === false) {
     return NextResponse.json(
-      { error: "You cannot deactivate your own admin account." },
+      { error: "You cannot deactivate your own manager account." },
       { status: 400 }
     );
   }
 
-  const activeAdminCount = await prisma.user.count({
+  const activeManagerCount = await prisma.user.count({
     where: {
-      role: "admin",
+      role: "manager",
       active: true
     }
   });
 
-  const isRemovingLastActiveAdmin =
-    user.role === "admin" &&
+  const isRemovingLastActiveManager =
+    user.role === "manager" &&
     user.active &&
-    activeAdminCount <= 1 &&
-    ((input.role && input.role !== "admin") || input.active === false);
+    activeManagerCount <= 1 &&
+    ((input.role && input.role !== "manager") || input.active === false);
 
-  if (isRemovingLastActiveAdmin) {
+  if (isRemovingLastActiveManager) {
     return NextResponse.json(
-      { error: "At least one active admin must remain in the workspace." },
+      { error: "At least one active manager must remain in the workspace." },
       { status: 400 }
     );
   }
@@ -184,14 +184,14 @@ export async function DELETE(
     return NextResponse.json({ error: "Sign in to manage users." }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ error: "Only admins can delete users." }, { status: 403 });
+  if (session.user.role !== "manager") {
+    return NextResponse.json({ error: "Only managers can delete users." }, { status: 403 });
   }
 
   const { id } = await context.params;
 
   if (id === session.user.id) {
-    return NextResponse.json({ error: "You cannot delete your own admin account." }, { status: 400 });
+    return NextResponse.json({ error: "You cannot delete your own manager account." }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({ where: { id } });
@@ -200,13 +200,13 @@ export async function DELETE(
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
 
-  const activeAdminCount = await prisma.user.count({
-    where: { role: "admin", active: true }
+  const activeManagerCount = await prisma.user.count({
+    where: { role: "manager", active: true }
   });
 
-  if (user.role === "admin" && user.active && activeAdminCount <= 1) {
+  if (user.role === "manager" && user.active && activeManagerCount <= 1) {
     return NextResponse.json(
-      { error: "At least one active admin must remain in the workspace." },
+      { error: "At least one active manager must remain in the workspace." },
       { status: 400 }
     );
   }

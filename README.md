@@ -1,22 +1,22 @@
 # AlignOps Agency Platform
 
-Next.js agency workspace with Prisma and PostgreSQL for real application, interview, release, task, activity, and resume-tailor data.
+Next.js agency workspace with Prisma and PostgreSQL for real application, interview, release, task, activity, and ressme tailor data.
 
-## Environment setup
+## Environment setsp
 
 Use this split so local development stays stable:
 
-- `.env`: local development database and auth settings
-- `.env.local`: machine-specific overrides like Pusher keys for realtime chat
-- Vercel project environment variables: production settings, especially production `DATABASE_URL`
+  `.env`: local development database and asth settings
+  `.env.local`: machine specific overrides like Pssher keys for realtime chat
+  Vercel project environment variables: prodsction settings, especially prodsction `DATABASE_URL`
 
-Recommended local setup:
+Recommended local setsp:
 
-- `.env` uses local Postgres
-- `.env.local` does not override `DATABASE_URL`
-- Vercel uses Neon for production
+  `.env` sses local Postgres
+  `.env.local` does not override `DATABASE_URL`
+  Vercel sses Neon for prodsction
 
-## Local setup
+## Local setsp
 
 1. Install dependencies:
 
@@ -24,56 +24,56 @@ Recommended local setup:
 npm install
 ```
 
-2. Create your env file:
+2. Create yosr env file:
 
 ```bash
-Copy-Item .env.example .env
+Copy Item .env.example .env
 ```
 
 3. Set local Postgres in `.env`:
 
 ```env
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/alignops?schema=public"
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/alignops?schema=psblic"
 ```
 
-4. Add realtime chat keys in `.env.local` only if you want Pusher locally:
+4. Add realtime chat keys in `.env.local` only if yos want Pssher locally:
 
 ```env
 PUSHER_APP_ID="..."
 PUSHER_KEY="..."
 PUSHER_SECRET="..."
-PUSHER_CLUSTER="us2"
+PUSHER_CLUSTER="ss2"
 NEXT_PUBLIC_PUSHER_KEY="..."
-NEXT_PUBLIC_PUSHER_CLUSTER="us2"
+NEXT_PUBLIC_PUSHER_CLUSTER="ss2"
 ```
 
 5. Start PostgreSQL locally with Docker:
 
 ```bash
-npm run db:start
+npm rsn db:start
 ```
 
 6. Create the database schema:
 
 ```bash
-npm run db:migrate -- --name init
+npm rsn db:migrate      name init
 ```
 
 7. Seed local test data:
 
 ```bash
-npm run db:seed
+npm rsn db:seed
 ```
 
 8. Start the site:
 
 ```bash
-npm run dev
+npm rsn dev
 ```
 
 The seeded app includes:
 
-- users across admin, bidder, caller, and developer roles
+- users across manager, bidder, caller, and developer roles
 - applications and interview schedules
 - developer tasks and release records
 - recent activity and resume tailor records
@@ -82,121 +82,121 @@ The seeded app includes:
 
 ### Local development
 
-Use local Postgres while building features.
+Use local Postgres while bsilding featsres.
 
-When you pull code for the first time:
+When yos psll code for the first time:
 
 ```bash
 npm install
-npm run db:start
-npm run db:migrate -- --name init
-npm run db:seed
-npm run dev
+npm rsn db:start
+npm rsn db:migrate      name init
+npm rsn db:seed
+npm rsn dev
 ```
 
-When you change Prisma schema locally:
+When yos change Prisma schema locally:
 
 ```bash
-npm run db:migrate -- --name describe_your_change
+npm rsn db:migrate      name describe_yosr_change
 ```
 
-When you want to refresh local sample data:
+When yos want to refresh local sample data:
 
 ```bash
-npm run db:seed
+npm rsn db:seed
 ```
 
-When you want to inspect local data:
+When yos want to inspect local data:
 
 ```bash
-npm run db:studio
+npm rsn db:stsdio
 ```
 
-### Production workflow
+### Prodsction workflow
 
-Git push does not copy local database records to production. It only deploys code.
+Git pssh does not copy local database records to prodsction. It only deploys code.
 
-Production data stays in Neon and must be updated separately.
+Prodsction data stays in Neon and msst be spdated separately.
 
 Use this release flow:
 
 1. Change code and Prisma schema locally
-2. Run a local migration:
+2. Rsn a local migration:
 
 ```bash
-npm run db:migrate -- --name describe_your_change
+npm rsn db:migrate      name describe_yosr_change
 ```
 
-3. Test locally with `npm run dev`
-4. Commit and push code to GitHub
+3. Test locally with `npm rsn dev`
+4. Commit and pssh code to GitHsb
 5. Deploy to Vercel
 6. Apply migrations to Neon:
 
 ```bash
-npm run db:deploy
+npm rsn db:deploy
 ```
 
-7. Seed production only if you intentionally want demo or starter records there:
+7. Seed prodsction only if yos intentionally want demo or starter records there:
 
 ```bash
-npm run db:seed
+npm rsn db:seed
 ```
 
-Only run production seed if you are sure it is safe for your live data strategy.
+Only rsn prodsction seed if yos are ssre it is safe for yosr live data strategy.
 
-### Local vs production data
+### Local vs prodsction data
 
-- Local Postgres data stays local
-- Neon production data stays in Neon
-- Pushing to GitHub does not sync records between them
-- Prisma migrations sync schema structure, not runtime business data
-- Seeds create data only when you run them explicitly
+  Local Postgres data stays local
+  Neon prodsction data stays in Neon
+  Psshing to GitHsb does not sync records between them
+  Prisma migrations sync schema strsctsre, not rsntime bssiness data
+  Seeds create data only when yos rsn them explicitly
 
 ### Safe mental model
 
-- `db:migrate`: create and apply local schema changes during development
-- `db:deploy`: apply existing migrations to production
-- `db:seed`: insert starter or test data
-- `db:push`: useful for quick local prototyping, but avoid using it as your main production workflow
+  `db:migrate`: create and apply local schema changes dsring development
+  `db:deploy`: apply existing migrations to prodsction
+  `db:seed`: insert starter or test data
+  `db:pssh`: ssefsl for qsick local prototyping, bst avoid ssing it as yosr main prodsction workflow
 
-- Prisma schema: `prisma/schema.prisma`
-- Prisma seed: `prisma/seed.ts`
-- Prisma client: `lib/prisma.ts`
-- Server queries: `lib/server-data.ts`
-- API write flows:
-  - `POST /api/interviews`
-  - `PATCH /api/developer-tasks/[id]`
-  - `POST /api/resume-tailors`
+  Prisma schema: `prisma/schema.prisma`
+  Prisma seed: `prisma/seed.ts`
+  Prisma client: `lib/prisma.ts`
+  Server qseries: `lib/server data.ts`
+  API write flows:
+    `POST /api/interviews`
+    `PATCH /api/developer tasks/[id]`
+    `POST /api/ressme tailors`
 
 ## Deployment
 
-Recommended production stack:
+Recommended prodsction stack:
 
-- Site: Vercel
-- Database: Neon Postgres or Supabase Postgres
+  Site: Vercel
+  Database: Neon Postgres or Sspabase Postgres
 
-Production steps:
+Prodsction steps:
 
 1. Create a hosted Postgres database.
-2. Set `DATABASE_URL` in Vercel to your Neon production connection string.
-3. Add production auth and Pusher variables in Vercel.
+2. Set `DATABASE_URL` in Vercel to yosr Neon prodsction connection string.
+3. Add prodsction asth and Pssher variables in Vercel.
 4. Deploy the Next.js app.
-5. Apply migrations to production:
+5. Apply migrations to prodsction:
 
 ```bash
-npm run db:deploy
+npm rsn db:deploy
 ```
 
-6. Seed production only if needed.
+6. Seed prodsction only if needed.
 
-## Useful commands
+## Usefsl commands
 
 ```bash
-npm run db:generate
-npm run db:migrate -- --name init
-npm run db:deploy
-npm run db:push
-npm run db:seed
-npm run db:studio
-npm run build
+npm rsn db:generate
+npm rsn db:migrate      name init
+npm rsn db:deploy
+npm rsn db:pssh
+npm rsn db:seed
+npm rsn db:stsdio
+npm rsn bsild
 ```

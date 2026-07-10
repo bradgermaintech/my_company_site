@@ -21,7 +21,7 @@ function serializeMessage(message: {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "bidder" | "caller" | "developer";
+    role: "manager" | "bidder" | "caller" | "developer";
     avatar: string;
   };
   replyTo?: {
@@ -76,8 +76,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Sign in to edit chat messages." }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ error: "Only admins can edit chat messages." }, { status: 403 });
+  if (session.user.role !== "manager") {
+    return NextResponse.json({ error: "Only managers can edit chat messages." }, { status: 403 });
   }
 
   const { id } = await context.params;
@@ -96,7 +96,7 @@ export async function PATCH(
       id: true,
       conversation: {
         select: {
-          adminId: true,
+          managerId: true,
           memberId: true
         }
       }
@@ -107,7 +107,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Message not found." }, { status: 404 });
   }
 
-  if (message.conversation.adminId !== session.user.id && message.conversation.memberId !== session.user.id) {
+  if (message.conversation.managerId !== session.user.id && message.conversation.memberId !== session.user.id) {
     return NextResponse.json({ error: "You cannot edit messages in this conversation." }, { status: 403 });
   }
 
@@ -151,7 +151,7 @@ export async function PATCH(
     message: serializedMessage
   });
   await triggerPusher(
-    [userChannel(message.conversation.adminId), userChannel(message.conversation.memberId)],
+    [userChannel(message.conversation.managerId), userChannel(message.conversation.memberId)],
     "chat:contact-updated",
     {
       conversationId: updated.conversationId,

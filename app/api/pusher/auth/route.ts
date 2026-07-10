@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       id: conversationId,
       OR: [
         {
-          adminId: session.user.id
+          managerId: session.user.id
         },
         {
           memberId: session.user.id

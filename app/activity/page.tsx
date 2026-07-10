@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function ActivityPage() {
   const [snapshot, session] = await Promise.all([
     getAgencySnapshot(),
-    requireRole("admin")
+    requireRole("manager")
   ]);
 
   const currentUser = {
@@ -22,7 +22,7 @@ export default async function ActivityPage() {
   };
 
   return (
-    <AppShell currentUser={currentUser} role="admin" active="activity" title="Activity management">
+    <AppShell currentUser={currentUser} role="manager" active="activity" title="Activity management">
       <ActivityFeed activities={snapshot.activities} users={snapshot.users} />
     </AppShell>
   );

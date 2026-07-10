@@ -8,7 +8,7 @@ datasource db {
 }
 
 enum UserRole {
-  admin
+  manager
   bidder
   caller
   developer
@@ -94,7 +94,7 @@ model User {
   developerTasks        DeveloperTask[]
   approvedReleases      Release[]       @relation("ReleaseApprover")
   activities            Activity[]
-  adminChatConversations ChatConversation[] @relation("ChatConversationAdmin")
+  managerChatConversations ChatConversation[] @relation("ChatConversationManager")
   memberChatConversations ChatConversation[] @relation("ChatConversationMember")
   sentChatMessages      ChatMessage[]    @relation("ChatMessageSender")
   chatReactions         ChatReaction[]    @relation("ChatReactionUser")
@@ -265,18 +265,18 @@ model Activity {
 
 model ChatConversation {
   id            String        @id
-  adminId       String
+  managerId     String
   memberId      String
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   lastMessageAt DateTime?
-  admin         User          @relation("ChatConversationAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  manager       User          @relation("ChatConversationManager", fields: [managerId], references: [id], onDelete: Cascade)
   member        User          @relation("ChatConversationMember", fields: [memberId], references: [id], onDelete: Cascade)
   messages      ChatMessage[]
   typingStates  ChatTyping[]
 
-  @@unique([adminId, memberId])
-  @@index([adminId, lastMessageAt])
+  @@unique([managerId, memberId])
+  @@index([managerId, lastMessageAt])
   @@index([memberId, lastMessageAt])
 }
 

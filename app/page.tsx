@@ -25,7 +25,7 @@ import { Progress } from "@/components/ui/progress";
 
 const roles = [
   {
-    title: "Admin",
+    title: "Manager",
     description: "Monitor team performance, releases, payments, and every open stage.",
     icon: LayoutDashboard
   },
@@ -68,7 +68,7 @@ const features = [
     icon: ClipboardList
   },
   {
-    title: "Admin payment and release tracking",
+    title: "Manager payment and release tracking",
     description: "Approve releases, monitor pending payments, and keep finance status visible.",
     icon: CreditCard
   },
@@ -167,7 +167,7 @@ function DashboardPreview() {
             <p className="text-xs text-muted-foreground">Bid to delivery overview</p>
           </div>
           <div className="flex gap-2">
-            <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Admin</span>
+            <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Manager</span>
             <span className="rounded-md bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">Live pipeline</span>
           </div>
         </div>
@@ -275,7 +275,7 @@ function RoleWorkflowSection() {
             Role-based workflow without handoff confusion.
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Each team member gets a focused workspace, while admin keeps the whole agency visible in one command center.
+            Each team member gets a focused workspace, while the manager keeps the whole agency visible in one command center.
           </p>
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -381,7 +381,7 @@ function BottomCta() {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/dashboard/admin">
+                <Link href="/dashboard/manager">
                   <GitPullRequestArrow className="size-4" aria-hidden="true" />
                   View Dashboard
                 </Link>

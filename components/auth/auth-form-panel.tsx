@@ -275,7 +275,7 @@ export function AuthFormPanel({ hasGoogleAuth }: AuthFormPanelProps) {
                   defaultValue="bidder"
                   className="h-11 border-white/10 bg-white/5 text-white"
                 >
-                  <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
                   <option value="bidder">Bidder</option>
                   <option value="caller">Caller</option>
                   <option value="developer">Developer</option>

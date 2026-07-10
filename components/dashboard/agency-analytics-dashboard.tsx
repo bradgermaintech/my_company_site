@@ -65,7 +65,7 @@ export function AgencyAnalyticsDashboard({
   const approvedRevenue = releases
     .filter((release) => release.status === "approved" || release.status === "paid")
     .reduce((total, release) => total + release.amount, 0);
-  const activeMembers = users.filter((user) => user.active && user.role !== "admin").length;
+  const activeMembers = users.filter((user) => user.active && user.role !== "manager").length;
   const offerCount = applications.filter((application) => application.status === "Offer").length;
   const rejectedCount = applications.filter((application) => application.status === "Rejected").length;
   const rejectionRate = applications.length
@@ -82,7 +82,7 @@ export function AgencyAnalyticsDashboard({
           : ("not-ready" as const)
   }));
   const workload = users
-    .filter((user) => user.role !== "admin")
+    .filter((user) => user.role !== "manager")
     .map((user) => ({
       user,
       records: applications.filter((application) => {
@@ -105,7 +105,7 @@ export function AgencyAnalyticsDashboard({
         <StatCard title="Show rate" value={`${showRate}%`} change={`${bookedInterviews} booked`} icon={CalendarCheck} tone="blue" />
         <StatCard title="Interview pass" value={`${passRate}%`} change="Passed outcomes" icon={TrendingUp} tone="amber" />
         <StatCard title="Approved revenue" value={formatCurrency(approvedRevenue)} change={`${offerCount} offers`} icon={CircleDollarSign} tone="teal" />
-        <StatCard title="Active delivery team" value={activeMembers.toString()} change="Non-admin members" icon={BriefcaseBusiness} tone="slate" />
+        <StatCard title="Active delivery team" value={activeMembers.toString()} change="Non-manager members" icon={BriefcaseBusiness} tone="slate" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">

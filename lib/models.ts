@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "bidder" | "caller" | "developer";
+export type UserRole = "manager" | "bidder" | "caller" | "developer";
 
 export type PipelineStatus =
   | "Bid"
@@ -108,7 +108,7 @@ export type Activity = {
 
 export type ChatConversation = {
   id: string;
-  adminId: string;
+  managerId: string;
   memberId: string;
   createdAt: string;
   updatedAt: string;

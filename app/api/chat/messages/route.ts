@@ -15,8 +15,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Sign in to delete chat messages." }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ error: "Only admins can delete selected chat messages." }, { status: 403 });
+  if (session.user.role !== "manager") {
+    return NextResponse.json({ error: "Only managers can delete selected chat messages." }, { status: 403 });
   }
 
   const parsed = deleteMessagesSchema.safeParse(await request.json());
@@ -36,7 +36,7 @@ export async function DELETE(request: Request) {
       conversation: {
         OR: [
           {
-            adminId: session.user.id
+            managerId: session.user.id
           },
           {
             memberId: session.user.id
@@ -49,7 +49,7 @@ export async function DELETE(request: Request) {
       conversationId: true,
       conversation: {
         select: {
-          adminId: true,
+          managerId: true,
           memberId: true
         }
       }
@@ -80,7 +80,7 @@ export async function DELETE(request: Request) {
       return Promise.all([
         triggerPusher(chatChannel(conversationId), "message:deleted", { ids }),
         triggerPusher(
-          [userChannel(firstMessage.conversation.adminId), userChannel(firstMessage.conversation.memberId)],
+          [userChannel(firstMessage.conversation.managerId), userChannel(firstMessage.conversation.memberId)],
           "chat:contact-updated",
           {
             conversationId,

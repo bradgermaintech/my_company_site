@@ -44,7 +44,7 @@ import {
 import type { DeveloperTask, Interview, JobApplication, Release, User } from "@/lib/models";
 import { formatCurrency } from "@/lib/utils";
 
-type AdminDashboardProps = {
+type ManagerDashboardProps = {
   applications: JobApplication[];
   developerTasks: DeveloperTask[];
   interviews: Interview[];
@@ -52,7 +52,7 @@ type AdminDashboardProps = {
   users: User[];
 };
 
-type AdminFilterState = {
+type ManagerFilterState = {
   endDate: string;
   jobTitle: string;
   range: string;
@@ -65,7 +65,7 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function createDefaultFilters(): AdminFilterState {
+function createDefaultFilters(): ManagerFilterState {
   const end = new Date();
   const start = new Date(end);
   start.setDate(start.getDate() - 90);
@@ -80,16 +80,16 @@ function createDefaultFilters(): AdminFilterState {
   };
 }
 
-export function AdminDashboard({
+export function ManagerDashboard({
   applications,
   developerTasks,
   interviews,
   releases,
   users
-}: AdminDashboardProps) {
+}: ManagerDashboardProps) {
   const searchParams = useSearchParams();
   const dashboardSearch = (searchParams.get("q") ?? "").trim().toLowerCase();
-  const [filters, setFilters] = useState<AdminFilterState>(() => createDefaultFilters());
+  const [filters, setFilters] = useState<ManagerFilterState>(() => createDefaultFilters());
   const filteredApplications = useMemo(() => {
     return applications.filter((application) => {
       const date = new Date(application.date);
@@ -173,7 +173,7 @@ export function AdminDashboard({
         <StatCard title="Approved payments" value={formatCurrency(approvedPayments)} icon={CreditCard} tone="teal" />
       </section>
 
-      <AdminFilters
+      <ManagerFilters
         applications={applications}
         filters={filters}
         onChange={setFilters}
@@ -194,15 +194,15 @@ export function AdminDashboard({
   );
 }
 
-function AdminFilters({
+function ManagerFilters({
   applications,
   filters,
   onChange,
   users
 }: {
   applications: JobApplication[];
-  filters: AdminFilterState;
-  onChange: (filters: AdminFilterState) => void;
+  filters: ManagerFilterState;
+  onChange: (filters: ManagerFilterState) => void;
   users: User[];
 }) {
   const jobTitles = useMemo(
@@ -210,7 +210,7 @@ function AdminFilters({
     [applications]
   );
 
-  function patchFilters(nextFilters: Partial<AdminFilterState>) {
+  function patchFilters(nextFilters: Partial<ManagerFilterState>) {
     onChange({
       ...filters,
       ...nextFilters
@@ -336,7 +336,7 @@ function TeamPerformanceTable({
     health: ""
   });
   const rows = useMemo(() => users
-    .filter((user) => user.role !== "admin")
+    .filter((user) => user.role !== "manager")
     .map((user) => {
       const ownedApplications = applications.filter((application) => {
         if (user.role === "bidder") {

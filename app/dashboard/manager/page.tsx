@@ -1,11 +1,11 @@
-import { ManagerUserManagement } from "@/components/manager-user-management";
 import { AppShell } from "@/components/app-shell";
+import { ManagerDashboard } from "@/components/dashboard/manager-dashboard";
 import { requireRole } from "@/lib/auth";
 import { getAgencySnapshot } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function UsersPage() {
+export default async function ManagerDashboardPage() {
   const [snapshot, session] = await Promise.all([
     getAgencySnapshot(),
     requireRole("manager")
@@ -22,12 +22,13 @@ export default async function UsersPage() {
   };
 
   return (
-    <AppShell currentUser={currentUser} role="manager" active="users" title="User management">
-      <ManagerUserManagement
+    <AppShell currentUser={currentUser} role="manager" active="dashboard" title="Agency command center">
+      <ManagerDashboard
         applications={snapshot.applications}
-        currentUserId={currentUser.id}
-        initialUsers={snapshot.users}
+        developerTasks={snapshot.developerTasks}
         interviews={snapshot.interviews}
+        releases={snapshot.releases}
+        users={snapshot.users}
       />
     </AppShell>
   );

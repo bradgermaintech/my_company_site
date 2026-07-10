@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 const createUserSchema = z.object({
   name: z.string().min(2, "Add a full name.").max(80, "Keep the name under 80 characters."),
   email: z.string().email("Enter a valid email address."),
-  role: z.enum(["admin", "bidder", "caller", "developer"]),
+  role: z.enum(["manager", "bidder", "caller", "developer"]),
   password: z.string().min(8, "Use at least 8 characters for the password.")
 });
 
@@ -25,7 +25,7 @@ function serializeUser(user: {
   name: string;
   email: string;
   image: string | null;
-  role: "admin" | "bidder" | "caller" | "developer";
+  role: "manager" | "bidder" | "caller" | "developer";
   avatar: string;
   active: boolean;
 }) {
@@ -39,8 +39,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in to manage users." }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ error: "Only admins can create users." }, { status: 403 });
+  if (session.user.role !== "manager") {
+    return NextResponse.json({ error: "Only managers can create users." }, { status: 403 });
   }
 
   const parsed = createUserSchema.safeParse(await request.json());

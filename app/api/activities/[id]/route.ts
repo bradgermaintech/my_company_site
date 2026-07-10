@@ -12,8 +12,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Sign in to manage activity." }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ error: "Only admins can delete activity records." }, { status: 403 });
+  if (session.user.role !== "manager") {
+    return NextResponse.json({ error: "Only managers can delete activity records." }, { status: 403 });
   }
 
   const { id } = await context.params;

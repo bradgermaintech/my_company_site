@@ -104,7 +104,7 @@ function formatTypingText(users: { name: string }[]) {
 
 function roleTone(role: UserRole) {
   const tones: Record<UserRole, string> = {
-    admin: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950",
+    manager: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950",
     bidder: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200",
     caller: "bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-200",
     developer: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200"
@@ -452,7 +452,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }
 
   function startEditingMessage(message: ChatMessage) {
-    if (currentUser.role !== "admin") {
+    if (currentUser.role !== "manager") {
       return;
     }
 
@@ -514,7 +514,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }
 
   function deleteSelectedMessages() {
-    if (currentUser.role !== "admin" || selectedMessageIds.size === 0) {
+    if (currentUser.role !== "manager" || selectedMessageIds.size === 0) {
       return;
     }
 
@@ -528,7 +528,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }
 
   function beginDeleteSelection(messageId: string) {
-    if (currentUser.role !== "admin") {
+    if (currentUser.role !== "manager") {
       return;
     }
 
@@ -1002,11 +1002,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-                  {currentUser.role === "admin"
-                    ? "Admins can message admins, bidders, callers, and developers directly."
-                    : "Your chat access is limited to admin conversations."}
+                  {currentUser.role === "manager"
+                    ? "Managers can message managers, bidders, callers, and developers directly."
+                    : "Your chat access is limited to manager conversations."}
                 </div>
-                {currentUser.role === "admin" && deleteSelectionMode ? (
+                {currentUser.role === "manager" && deleteSelectionMode ? (
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
@@ -1044,14 +1044,14 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                 {messages.map((message) => {
                   const mine = message.senderId === currentUser.id;
                   const selected = selectedMessageIds.has(message.id);
-                  const canAdminManage = currentUser.role === "admin";
+                  const canManagerManage = currentUser.role === "manager";
 
                   return (
                     <div
                       key={message.id}
                       className={cn("group/message flex items-end gap-2", mine ? "justify-end" : "justify-start")}
                     >
-                      {canAdminManage && deleteSelectionMode ? (
+                      {canManagerManage && deleteSelectionMode ? (
                         <label
                           className={cn(
                             "flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card opacity-80 transition-colors hover:opacity-100",
@@ -1093,7 +1093,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           >
                             <Reply className="size-4" aria-hidden="true" />
                           </button>
-                          {canAdminManage ? (
+                          {canManagerManage ? (
                             <button
                               type="button"
                               className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1104,7 +1104,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                               <Pencil className="size-4" aria-hidden="true" />
                             </button>
                           ) : null}
-                          {canAdminManage ? (
+                          {canManagerManage ? (
                             <button
                               type="button"
                               className="rounded-full p-1.5 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
@@ -1208,7 +1208,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                     <MessageCircle className="mx-auto size-8 text-primary" aria-hidden="true" />
                     <h3 className="mt-3 font-semibold text-foreground">Start the conversation</h3>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Send a focused update, question, or next action. This channel stays limited to admin-member communication.
+                      Send a focused update, question, or next action. This channel stays limited to manager-member communication.
                     </p>
                   </div>
                 ) : null}
@@ -1291,7 +1291,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               <MessageCircle className="mx-auto size-10 text-primary" aria-hidden="true" />
               <h2 className="mt-4 text-xl font-semibold text-foreground">Choose a conversation</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Select an eligible admin or team member to begin secure role-based messaging.
+                Select an eligible manager or team member to begin secure role-based messaging.
               </p>
             </div>
           </div>

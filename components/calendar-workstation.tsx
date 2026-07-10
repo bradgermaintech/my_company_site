@@ -338,7 +338,7 @@ export function CalendarWorkstation({
   );
 
   const creatableApplications = useMemo(() => {
-    if (currentUser.role === "admin") {
+    if (currentUser.role === "manager") {
       return applications;
     }
 
@@ -945,7 +945,7 @@ export function CalendarWorkstation({
                     The selected meeting opens here, similar to a calendar side panel.
                   </p>
                 </div>
-                <HelpTooltip content="Admins can manage all interviews. Callers manage schedules for their interviews. Developers can update interview results for their assigned interviews. Bidders can review only." />
+                <HelpTooltip content="Managers can manage all interviews. Callers manage schedules for their interviews. Developers can update interview results for their assigned interviews. Bidders can review only." />
               </div>
 
               {feedback ? (

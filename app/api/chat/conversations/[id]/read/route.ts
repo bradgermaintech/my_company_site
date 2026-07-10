@@ -8,7 +8,7 @@ async function getAccessibleConversation(conversationId: string, userId: string)
     where: { id: conversationId },
     select: {
       id: true,
-      adminId: true,
+      managerId: true,
       memberId: true
     }
   });
@@ -17,7 +17,7 @@ async function getAccessibleConversation(conversationId: string, userId: string)
     return null;
   }
 
-  if (conversation.adminId !== userId && conversation.memberId !== userId) {
+  if (conversation.managerId !== userId && conversation.memberId !== userId) {
     return null;
   }
 

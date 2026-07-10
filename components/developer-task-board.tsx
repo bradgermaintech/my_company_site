@@ -113,12 +113,12 @@ export function DeveloperTaskBoard({
         <div>
           <CardTitle>Developer workflow board</CardTitle>
           <CardDescription>
-            Track assigned delivery work, linked job context, technical notes, and admin-visible progress.
+            Track assigned delivery work, linked job context, technical notes, and manager-visible progress.
           </CardDescription>
         </div>
         <div className="min-w-[240px] rounded-lg border bg-slate-50 p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold">Admin-visible progress</p>
+            <p className="text-sm font-semibold">Manager-visible progress</p>
             <span className="text-sm font-bold">{completion}%</span>
           </div>
           <Progress value={completion} className="mt-3" />

@@ -3,11 +3,11 @@ import type { Interview, JobApplication, User, UserRole } from "@/lib/models";
 type Actor = Pick<User, "id" | "role">;
 
 export function canCreateInterview(actor: Actor) {
-  return actor.role === "admin" || actor.role === "caller";
+  return actor.role === "manager" || actor.role === "caller";
 }
 
 export function canManageInterviewSchedule(actor: Actor, interview: Pick<Interview, "callerId">) {
-  return actor.role === "admin" || (actor.role === "caller" && actor.id === interview.callerId);
+  return actor.role === "manager" || (actor.role === "caller" && actor.id === interview.callerId);
 }
 
 export function canUpdateInterviewResult(
@@ -15,7 +15,7 @@ export function canUpdateInterviewResult(
   interview: Pick<Interview, "callerId" | "developerId">
 ) {
   return (
-    actor.role === "admin" ||
+    actor.role === "manager" ||
     (actor.role === "caller" && actor.id === interview.callerId) ||
     (actor.role === "developer" && actor.id === interview.developerId)
   );
@@ -30,7 +30,7 @@ export function canViewInterview(
   interview: Pick<Interview, "callerId" | "developerId">,
   application: Pick<JobApplication, "bidderId">
 ) {
-  if (actor.role === "admin") {
+  if (actor.role === "manager") {
     return true;
   }
 
@@ -50,7 +50,7 @@ export function scopeApplicationsForRole(
   userId: string,
   applications: JobApplication[]
 ) {
-  if (role === "admin") {
+  if (role === "manager") {
     return applications;
   }
 
@@ -71,7 +71,7 @@ export function scopeInterviewsForRole(
   interviews: Interview[],
   applicationsById: Map<string, JobApplication>
 ) {
-  if (role === "admin") {
+  if (role === "manager") {
     return interviews;
   }
 

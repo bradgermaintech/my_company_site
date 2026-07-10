@@ -51,7 +51,7 @@ const navItems: NavItem[] = [
  
 export function Sidebar({ active, collapsed, currentUser, onToggle, role }: SidebarProps) {
   const items = (() => {
-    if (role === "admin") {
+    if (role === "manager") {
       return [
         ...navItems.slice(0, 7),
         { label: "Activity", href: "/activity", icon: History, key: "activity" },

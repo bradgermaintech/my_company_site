@@ -22,7 +22,7 @@ import {
 import type { UserRole } from "@/lib/models";
 
 const roleFocusMap: Record<UserRole, string> = {
-  admin: "Review every lane, fix assignments, and keep interviews, delivery, and payments aligned.",
+  manager: "Review every lane, fix assignments, and keep interviews, delivery, and payments aligned.",
   bidder: "Create fresh applications, keep notes accurate, and move opportunities through the early pipeline.",
   caller: "Track who is interview-ready and coordinate scheduling from the pipeline into the calendar.",
   developer: "Watch assigned records, understand stage context, and keep delivery work attached to the right application."
@@ -67,9 +67,7 @@ export function GettingStartedGuide({ role }: { role: UserRole }) {
             </Badge>
             <div className="space-y-1">
               <CardTitle className="text-xl">How to use this platform</CardTitle>
-              <CardDescription>
-                {roleFocusMap[role]}
-              </CardDescription>
+              <CardDescription>{roleFocusMap[role]}</CardDescription>
             </div>
           </div>
           <div className="rounded-lg border bg-background/75 px-4 py-3 text-sm text-muted-foreground">

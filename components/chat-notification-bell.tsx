@@ -14,7 +14,7 @@ type NotificationContact = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "bidder" | "caller" | "developer";
+    role: "manager" | "bidder" | "caller" | "developer";
     avatar: string;
   };
   lastMessage: {
@@ -218,7 +218,7 @@ export function ChatNotificationBell({ currentUserId }: { currentUserId?: string
                 <MessageCircle className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
                 <p className="mt-3 text-sm font-semibold">You are all caught up</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  New admin/team chat messages will appear here.
+                  New manager/team chat messages will appear here.
                 </p>
               </div>
             )}

@@ -15,9 +15,10 @@ export async function requireSession() {
 
 export async function requireRole(role: UserRole) {
   const session = await requireSession();
+  const sessionRole = session.user.role ?? "bidder";
 
-  if (session.user.role !== role) {
-    redirect(getPrimaryDashboardRoute(session.user.role));
+  if (sessionRole !== role) {
+    redirect(getPrimaryDashboardRoute(sessionRole));
   }
 
   return session;

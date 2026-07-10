@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in to create applications." }, { status: 401 });
   }
 
-  if (session.user.role !== "admin" && session.user.role !== "bidder") {
+  if (session.user.role !== "manager" && session.user.role !== "bidder") {
     return NextResponse.json({ error: "You do not have permission to create applications." }, { status: 403 });
   }
 

@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('admin', 'bidder', 'caller', 'developer');
+CREATE TYPE "UserRole" AS ENUM ('manager', 'bidder', 'caller', 'developer');
 
 -- CreateEnum
 CREATE TYPE "PipelineStatus" AS ENUM ('Bid', 'Response', 'Intro', 'Tech', 'Culture', 'Final', 'Offer', 'Rejected');

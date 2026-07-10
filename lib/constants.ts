@@ -12,7 +12,7 @@ export const pipelineStatuses: PipelineStatus[] = [
 ];
 
 export const roleLabels: Record<UserRole, string> = {
-  admin: "Admin",
+  manager: "Manager",
   bidder: "Bidder",
   caller: "Caller",
   developer: "Developer"

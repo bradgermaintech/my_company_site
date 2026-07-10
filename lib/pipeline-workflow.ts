@@ -12,14 +12,14 @@ export const pipelineWorkflowStatuses: PipelineStatus[] = [
 ];
 
 export const stageOwners: Record<PipelineStatus, UserRole[]> = {
-  Bid: ["bidder", "admin"],
-  Response: ["bidder", "caller", "admin"],
-  Intro: ["caller", "admin"],
-  Tech: ["caller", "developer", "admin"],
-  Culture: ["caller", "developer", "admin"],
-  Final: ["caller", "admin"],
-  Offer: ["admin"],
-  Rejected: ["bidder", "caller", "admin"]
+  Bid: ["bidder", "manager"],
+  Response: ["bidder", "caller", "manager"],
+  Intro: ["caller", "manager"],
+  Tech: ["caller", "developer", "manager"],
+  Culture: ["caller", "developer", "manager"],
+  Final: ["caller", "manager"],
+  Offer: ["manager"],
+  Rejected: ["bidder", "caller", "manager"]
 };
 
 export const allowedTransitions: Record<PipelineStatus, PipelineStatus[]> = {
@@ -40,7 +40,7 @@ export const stageDescriptions: Record<PipelineStatus, string> = {
   Tech: "Technical interview or technical preparation stage.",
   Culture: "Culture, team, or behavioral interview stage.",
   Final: "Final decision, negotiation, or closing stage.",
-  Offer: "Offer received. Admin owns commercial and finance workflow.",
+  Offer: "Offer received. Manager owns commercial and finance workflow.",
   Rejected: "Closed unsuccessful application."
 };
 
@@ -48,7 +48,7 @@ export function isAssignedApplicationOwner(
   user: Pick<User, "id" | "role">,
   application: Pick<JobApplication, "bidderId" | "callerId" | "developerId">
 ) {
-  if (user.role === "admin") {
+  if (user.role === "manager") {
     return true;
   }
 
@@ -77,14 +77,14 @@ export function canDeleteApplicationByWorkflow(
   user: Pick<User, "id" | "role">,
   application: Pick<JobApplication, "bidderId">
 ) {
-  return user.role === "admin" || (user.role === "bidder" && application.bidderId === user.id);
+  return user.role === "manager" || (user.role === "bidder" && application.bidderId === user.id);
 }
 
 export function getAllowedNextStatuses(
   user: Pick<User, "id" | "role">,
   application: Pick<JobApplication, "bidderId" | "callerId" | "developerId" | "status">
 ) {
-  if (user.role === "admin") {
+  if (user.role === "manager") {
     return pipelineWorkflowStatuses;
   }
 
@@ -112,7 +112,7 @@ export function validateApplicationWorkflowChange({
   nextApplication: Pick<JobApplication, "bidderId" | "callerId" | "developerId" | "status">;
   user: Pick<User, "id" | "role">;
 }) {
-  if (user.role === "admin") {
+  if (user.role === "manager") {
     return null;
   }
 
@@ -129,7 +129,7 @@ export function validateApplicationWorkflowChange({
     currentApplication.callerId !== nextApplication.callerId ||
     currentApplication.developerId !== nextApplication.developerId
   ) {
-    return "Only admins can reassign application owners after creation.";
+    return "Only managers can reassign application owners after creation.";
   }
 
   if (currentApplication.status === nextApplication.status) {
@@ -141,7 +141,7 @@ export function validateApplicationWorkflowChange({
   }
 
   if (nextApplication.status === "Offer") {
-    return "Only admins can move an application to Offer.";
+    return "Only managers can move an application to Offer.";
   }
 
   if (!stageOwners[nextApplication.status].includes(user.role)) {

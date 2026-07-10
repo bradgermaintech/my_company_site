@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardRouterPage() {
   const session = await requireSession();
-  redirect(getPrimaryDashboardRoute(session.user.role));
+  redirect(getPrimaryDashboardRoute(session.user.role ?? "bidder"));
 }

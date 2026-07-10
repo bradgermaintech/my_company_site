@@ -10,13 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
- 
 import {
   interviewInputSchema,
   interviewStageOptions,
   type InterviewInput
 } from "@/lib/interview-schema";
-import type { Interview, User, UserRole, JobApplication } from "@/lib/models";
+import type { Interview, JobApplication, User, UserRole } from "@/lib/models";
 
 type InterviewModalProps = {
   applications: JobApplication[];
@@ -40,6 +39,7 @@ function formatDatetimeLocal(value?: string) {
   const day = `${date.getDate()}`.padStart(2, "0");
   const hours = `${date.getHours()}`.padStart(2, "0");
   const minutes = `${date.getMinutes()}`.padStart(2, "0");
+
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
@@ -83,7 +83,6 @@ function isCallerLocked(role: UserRole) {
 
 export function InterviewModal({
   applications,
- 
   callers,
   currentUser,
   developers,
@@ -110,7 +109,6 @@ export function InterviewModal({
     return null;
   }
 
- 
   async function onSubmit(values: InterviewInput) {
     await onSave(values);
     onOpenChange(false);
@@ -173,7 +171,7 @@ export function InterviewModal({
             </Field>
             <Field
               label="Developer"
-              helpText="This is the developer attached to the technical execution side of the interview."
+              helpText="This developer is attached to the technical execution side of the interview."
               error={errors.developerId?.message}
             >
               <Select id="developerId" {...register("developerId")}>
@@ -189,7 +187,7 @@ export function InterviewModal({
           <div className="grid gap-4 md:grid-cols-2">
             <Field
               label="Caller"
-              helpText="Caller accounts are locked to their own ownership. Admins can reassign when needed."
+              helpText="Caller accounts are locked to their own ownership. Managers can reassign when needed."
               error={errors.callerId?.message}
             >
               <Select id="callerId" {...register("callerId")} disabled={lockedCaller}>
@@ -215,15 +213,13 @@ export function InterviewModal({
             </Field>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[1fr_170px]">
-            <Field
-              label="Title"
-              helpText="A short label for the interview card and detail panel."
-              error={errors.title?.message}
-            >
-              <Input id="title" {...register("title")} />
-            </Field>
-          </div>
+          <Field
+            label="Title"
+            helpText="A short label for the interview card and detail panel."
+            error={errors.title?.message}
+          >
+            <Input id="title" {...register("title")} />
+          </Field>
 
           <div className="grid gap-4 md:grid-cols-2">
             <Field
@@ -262,7 +258,6 @@ export function InterviewModal({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
- 
             <Button
               type="submit"
               disabled={isSubmitting || !applications.length || !developers.length || !callers.length}

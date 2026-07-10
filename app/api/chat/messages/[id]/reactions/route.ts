@@ -61,7 +61,7 @@ export async function POST(
       conversationId: true,
       conversation: {
         select: {
-          adminId: true,
+          managerId: true,
           memberId: true
         }
       }
@@ -72,7 +72,7 @@ export async function POST(
     return NextResponse.json({ error: "Message not found." }, { status: 404 });
   }
 
-  if (message.conversation.adminId !== session.user.id && message.conversation.memberId !== session.user.id) {
+  if (message.conversation.managerId !== session.user.id && message.conversation.memberId !== session.user.id) {
     return NextResponse.json({ error: "You cannot react in this conversation." }, { status: 403 });
   }
 

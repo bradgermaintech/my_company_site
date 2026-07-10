@@ -22,7 +22,7 @@ export const pipelineStatuses: PipelineStatus[] = [
 ];
 
 export const roleLabels: Record<UserRole, string> = {
-  admin: "Admin",
+  manager: "Manager",
   bidder: "Bidder",
   caller: "Caller",
   developer: "Developer"
@@ -30,10 +30,10 @@ export const roleLabels: Record<UserRole, string> = {
 
 export const users: User[] = [
   {
-    id: "user-admin-1",
+    id: "user-manager-1",
     name: "Maya Benton",
     email: "maya@alignops.dev",
-    role: "admin",
+    role: "manager",
     avatar: "MB",
     active: true
   },
@@ -366,28 +366,28 @@ export const releases: Release[] = [
     applicationId: "app-1003",
     amount: 9600,
     status: "approved",
-    approvedBy: "user-admin-1"
+    approvedBy: "user-manager-1"
   },
   {
     id: "rel-5002",
     applicationId: "app-1001",
     amount: 7200,
     status: "pending",
-    approvedBy: "user-admin-1"
+    approvedBy: "user-manager-1"
   },
   {
     id: "rel-5003",
     applicationId: "app-1004",
     amount: 8400,
     status: "pending",
-    approvedBy: "user-admin-1"
+    approvedBy: "user-manager-1"
   },
   {
     id: "rel-5004",
     applicationId: "app-1007",
     amount: 6800,
     status: "paid",
-    approvedBy: "user-admin-1",
+    approvedBy: "user-manager-1",
     paidAt: "2026-06-09T19:00:00Z"
   }
 ];
@@ -402,7 +402,7 @@ export const activities: Activity[] = [
   },
   {
     id: "act-6002",
-    userId: "user-admin-1",
+    userId: "user-manager-1",
     action: "approved release",
     target: "Atlas Claims",
     timestamp: "2026-06-10T17:02:00Z"

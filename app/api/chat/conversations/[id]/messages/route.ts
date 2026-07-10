@@ -22,7 +22,7 @@ function serializeMessage(message: {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "bidder" | "caller" | "developer";
+    role: "manager" | "bidder" | "caller" | "developer";
     avatar: string;
   };
   replyTo?: {
@@ -72,7 +72,7 @@ async function getAccessibleConversation(conversationId: string, userId: string)
     where: { id: conversationId },
     select: {
       id: true,
-      adminId: true,
+      managerId: true,
       memberId: true
     }
   });
@@ -81,11 +81,20 @@ async function getAccessibleConversation(conversationId: string, userId: string)
     return null;
   }
 
-  if (conversation.adminId !== userId && conversation.memberId !== userId) {
+  if (conversation.managerId !== userId && conversation.memberId !== userId) {
     return null;
   }
 
   return conversation;
+}
+
+async function touchCurrentUser(userId: string, timestamp = new Date()) {
+  const result = await prisma.user.updateMany({
+    where: { id: userId, active: true },
+    data: { lastSeenAt: timestamp }
+  });
+
+  return result.count > 0;
 }
 
 export async function GET(
@@ -105,11 +114,16 @@ export async function GET(
     return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
   }
 
-  const [, messages, readResult] = await Promise.all([
-    prisma.user.update({
-      where: { id: session.user.id },
-      data: { lastSeenAt: new Date() }
-    }).then(() => null),
+  const hasCurrentUser = await touchCurrentUser(session.user.id);
+
+  if (!hasCurrentUser) {
+    return NextResponse.json(
+      { error: "Your session is out of date. Please sign in again." },
+      { status: 401 }
+    );
+  }
+
+  const [messages, readResult] = await Promise.all([
     prisma.chatMessage.findMany({
       where: { conversationId: conversation.id },
       include: {
@@ -216,10 +230,19 @@ export async function POST(
   }
 
   const now = new Date();
+
+  const hasCurrentUser = await touchCurrentUser(session.user.id, now);
+
+  if (!hasCurrentUser) {
+    return NextResponse.json(
+      { error: "Your session is out of date. Please sign in again." },
+      { status: 401 }
+    );
+  }
+
   const [, message] = await prisma.$transaction([
-    prisma.user.update({
-      where: { id: session.user.id },
-      data: { lastSeenAt: now }
+    prisma.user.findUniqueOrThrow({
+      where: { id: session.user.id }
     }),
     prisma.chatMessage.create({
       data: {
@@ -271,7 +294,7 @@ export async function POST(
     message: serializedMessage
   });
   await triggerPusher(
-    [userChannel(conversation.adminId), userChannel(conversation.memberId)],
+    [userChannel(conversation.managerId), userChannel(conversation.memberId)],
     "chat:contact-updated",
     {
       conversationId: conversation.id,

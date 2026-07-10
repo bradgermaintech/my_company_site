@@ -32,13 +32,13 @@ import type { Interview, JobApplication, User } from "@/lib/models";
 const createMemberSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  role: z.enum(["admin", "bidder", "caller", "developer"]),
+  role: z.enum(["manager", "bidder", "caller", "developer"]),
   password: z.string().min(8)
 });
 
 type CreateMemberForm = z.infer<typeof createMemberSchema>;
 
-type AdminUserManagementProps = {
+type ManagerUserManagementProps = {
   applications: JobApplication[];
   currentUserId: string;
   initialUsers: User[];
@@ -51,18 +51,18 @@ type FeedbackState = {
 } | null;
 
 const roleLabels: Record<User["role"], string> = {
-  admin: "Admin",
+  manager: "Manager",
   bidder: "Bidder",
   caller: "Caller",
   developer: "Developer"
 };
 
-export function AdminUserManagement({
+export function ManagerUserManagement({
   applications,
   currentUserId,
   initialUsers,
   interviews
-}: AdminUserManagementProps) {
+}: ManagerUserManagementProps) {
   const searchParams = useSearchParams();
   const [users, setUsers] = useState(initialUsers);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
@@ -82,7 +82,7 @@ export function AdminUserManagement({
   });
 
   const activeUsers = users.filter((user) => user.active);
-  const activeAdmins = users.filter((user) => user.role === "admin" && user.active).length;
+  const activeManagers = users.filter((user) => user.role === "manager" && user.active).length;
   const filteredUsers = useMemo(() => {
     const query = memberFilter.trim().toLowerCase();
 
@@ -191,12 +191,12 @@ export function AdminUserManagement({
               <div className="space-y-2">
                 <Badge variant="secondary" className="w-fit gap-2 rounded-full px-3 py-1">
                   <ShieldCheck className="size-3.5" />
-                  Admin controls
+                  Manager controls
                 </Badge>
                 <div className="space-y-1">
                   <CardTitle className="text-xl">Workspace user management</CardTitle>
                   <CardDescription>
-                    Create members, adjust roles, and manage workspace access without leaving the admin surface.
+                    Create members, adjust roles, and manage workspace access without leaving the manager surface.
                   </CardDescription>
                 </div>
               </div>
@@ -208,7 +208,7 @@ export function AdminUserManagement({
 
             <div className="grid gap-4 sm:grid-cols-3">
               <SummaryStat label="Workspace members" value={users.length.toString()} icon={UsersRound} />
-              <SummaryStat label="Active admins" value={activeAdmins.toString()} icon={ShieldCheck} />
+              <SummaryStat label="Active managers" value={activeManagers.toString()} icon={ShieldCheck} />
               <SummaryStat label="Inactive users" value={users.filter((user) => !user.active).length.toString()} icon={UserCog} />
             </div>
           </CardHeader>
@@ -337,7 +337,7 @@ export function AdminUserManagement({
 
               <Field label="Role">
                 <Select {...createForm.register("role")}>
-                  <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
                   <option value="bidder">Bidder</option>
                   <option value="caller">Caller</option>
                   <option value="developer">Developer</option>

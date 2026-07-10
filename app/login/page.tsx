@@ -3,15 +3,13 @@ import { ArrowRight, CalendarClock, Layers3, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/auth";
 import { AuthFormPanel } from "@/components/auth/auth-form-panel";
- 
 import { BrandLogo } from "@/components/brand-logo";
- 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getPrimaryDashboardRoute } from "@/lib/auth-routes";
 
 const roleCards = [
   {
-    label: "Admin control",
+    label: "Manager control",
     copy: "Pipeline health, release approvals, team performance, and finance visibility."
   },
   {
@@ -44,7 +42,6 @@ export default async function LoginPage() {
         <header className="border-b border-white/10">
           <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-6 px-4 lg:px-8">
             <Link href="/" className="flex items-center gap-3">
- 
               <BrandLogo dark size="sm" />
             </Link>
 

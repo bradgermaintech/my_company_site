@@ -143,7 +143,7 @@ export function ApplicationCrudWorkbench({
   const developers = useMemo(() => users.filter((user) => user.role === "developer" && user.active), [users]);
   const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
 
-  const canCreate = currentUser.role === "admin" || currentUser.role === "bidder";
+  const canCreate = currentUser.role === "manager" || currentUser.role === "bidder";
 
   const filteredApplications = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -401,7 +401,7 @@ export function ApplicationCrudWorkbench({
               label="My scope"
               value={
                 applications.filter((application) => {
-                  if (currentUser.role === "admin") {
+                  if (currentUser.role === "manager") {
                     return true;
                   }
                   if (currentUser.role === "bidder") {
@@ -803,7 +803,7 @@ function ApplicationFormSheet({
 
     return getAllowedNextStatuses(currentUser, application);
   }, [application, currentUser, mode]);
-  const canReassignOwners = currentUser.role === "admin";
+  const canReassignOwners = currentUser.role === "manager";
   const form = useForm<ApplicationInput>({
     resolver: zodResolver(applicationInputSchema),
     defaultValues: getDefaultValues({

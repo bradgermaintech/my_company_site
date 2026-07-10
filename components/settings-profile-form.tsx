@@ -24,7 +24,7 @@ import type { User } from "@/lib/models";
 const profileSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  role: z.enum(["admin", "bidder", "caller", "developer"]),
+  role: z.enum(["manager", "bidder", "caller", "developer"]),
   timezone: z.string().min(1),
   bio: z.string().min(20),
   dailyDigest: z.boolean(),
@@ -159,7 +159,7 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
               <div className="flex flex-col gap-2">
                 <Label htmlFor="role">Default role</Label>
                 <Select id="role" {...register("role")}>
-                  <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
                   <option value="bidder">Bidder</option>
                   <option value="caller">Caller</option>
                   <option value="developer">Developer</option>
@@ -283,7 +283,7 @@ export function SettingsProfileForm({ currentUser }: { currentUser: User }) {
               <span>
                 <span className="block text-sm font-semibold">Release alerts</span>
                 <span className="block text-sm leading-6 text-muted-foreground">
-                  Notify admins when release or payment states change.
+                  Notify managers when release or payment states change.
                 </span>
               </span>
             </label>
