@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerAuthSession } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { chatChannel, pusherServer, triggerPusher } from "@/lib/pusher";
 
 const typingSchema = z.object({
   typing: z.boolean()
@@ -101,32 +102,54 @@ export async function POST(
     return NextResponse.json({ error: "Invalid typing status." }, { status: 400 });
   }
 
-  if (!parsed.data.typing) {
-    await prisma.chatTyping.deleteMany({
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      name: true,
+      avatar: true
+    }
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+
+  if (!pusherServer) {
+    if (!parsed.data.typing) {
+      await prisma.chatTyping.deleteMany({
+        where: {
+          conversationId: conversation.id,
+          userId: session.user.id
+        }
+      });
+
+      return NextResponse.json({ ok: true, realtime: false });
+    }
+
+    await prisma.chatTyping.upsert({
       where: {
+        conversationId_userId: {
+          conversationId: conversation.id,
+          userId: session.user.id
+        }
+      },
+      create: {
+        id: `typing-${crypto.randomUUID()}`,
         conversationId: conversation.id,
         userId: session.user.id
+      },
+      update: {
+        updatedAt: new Date()
       }
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, realtime: false });
   }
 
-  await prisma.chatTyping.upsert({
-    where: {
-      conversationId_userId: {
-        conversationId: conversation.id,
-        userId: session.user.id
-      }
-    },
-    create: {
-      id: `typing-${crypto.randomUUID()}`,
-      conversationId: conversation.id,
-      userId: session.user.id
-    },
-    update: {
-      updatedAt: new Date()
-    }
+  await triggerPusher(chatChannel(conversation.id), "typing:update", {
+    user,
+    typing: parsed.data.typing
   });
 
   return NextResponse.json({ ok: true });

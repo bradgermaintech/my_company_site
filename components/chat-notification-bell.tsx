@@ -5,6 +5,7 @@ import { Bell, MessageCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { roleLabels } from "@/lib/constants";
+import { getPusherClient } from "@/lib/pusher-client";
 import { cn } from "@/lib/utils";
 
 type NotificationContact = {
@@ -24,6 +25,16 @@ type NotificationContact = {
   updatedAt: string | null;
 };
 
+type ChatContactEvent = {
+  conversationId?: string;
+  senderId?: string;
+};
+
+type ChatReadEvent = {
+  conversationId: string;
+  readCount?: number;
+};
+
 function formatTime(value: string | null) {
   if (!value) {
     return "";
@@ -37,18 +48,20 @@ function formatTime(value: string | null) {
   }).format(new Date(value));
 }
 
-export function ChatNotificationBell() {
+export function ChatNotificationBell({ currentUserId }: { currentUserId?: string | null }) {
   const [open, setOpen] = useState(false);
   const [contacts, setContacts] = useState<NotificationContact[]>([]);
+  const [eventUnreadCount, setEventUnreadCount] = useState(0);
 
   const unreadContacts = useMemo(
     () => contacts.filter((contact) => contact.unreadCount > 0),
     [contacts]
   );
-  const unreadCount = unreadContacts.reduce(
+  const storedUnreadCount = unreadContacts.reduce(
     (total, contact) => total + contact.unreadCount,
     0
   );
+  const unreadCount = storedUnreadCount + eventUnreadCount;
 
   const loadNotifications = useCallback(async () => {
     const response = await fetch("/api/chat/conversations", {
@@ -61,14 +74,75 @@ export function ChatNotificationBell() {
 
     const payload = await response.json();
     setContacts(payload.contacts ?? []);
+    setEventUnreadCount(0);
   }, []);
 
   useEffect(() => {
     void loadNotifications();
-    const interval = window.setInterval(() => void loadNotifications(), 5000);
+    const updateLocalReadCount = (event: Event) => {
+      const detail = (event as CustomEvent<{ readCount?: number }>).detail;
+      setEventUnreadCount((current) => Math.max(0, current - (detail?.readCount ?? current)));
+      setContacts((current) =>
+        current.map((contact) =>
+          contact.unreadCount > 0
+            ? {
+                ...contact,
+                unreadCount: Math.max(0, contact.unreadCount - (detail?.readCount ?? contact.unreadCount))
+              }
+            : contact
+        )
+      );
+    };
 
-    return () => window.clearInterval(interval);
-  }, [loadNotifications]);
+    window.addEventListener("alignops-chat-read", updateLocalReadCount);
+
+    if (!currentUserId) {
+      return () => window.removeEventListener("alignops-chat-read", updateLocalReadCount);
+    }
+
+    const pusher = getPusherClient();
+
+    if (!pusher) {
+      return () => window.removeEventListener("alignops-chat-read", updateLocalReadCount);
+    }
+
+    const channelName = `private-user-${currentUserId}`;
+    const channel = pusher.subscribe(channelName);
+    const updateUnreadCount = (payload: ChatContactEvent) => {
+      if (!payload.senderId || payload.senderId === currentUserId) {
+        return;
+      }
+
+      if (open) {
+        void loadNotifications();
+        return;
+      }
+
+      setEventUnreadCount((current) => current + 1);
+    };
+    const updateReadCount = (payload: ChatReadEvent) => {
+      setEventUnreadCount((current) => Math.max(0, current - (payload.readCount ?? current)));
+      setContacts((current) =>
+        current.map((contact) =>
+          contact.conversationId === payload.conversationId
+            ? {
+                ...contact,
+                unreadCount: 0
+              }
+            : contact
+        )
+      );
+    };
+
+    channel.bind("chat:contact-updated", updateUnreadCount);
+    channel.bind("chat:read", updateReadCount);
+
+    return () => {
+      channel.unbind("chat:contact-updated", updateUnreadCount);
+      channel.unbind("chat:read", updateReadCount);
+      window.removeEventListener("alignops-chat-read", updateLocalReadCount);
+    };
+  }, [currentUserId, loadNotifications, open]);
 
   return (
     <div className="relative">

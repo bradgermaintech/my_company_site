@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerAuthSession } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { chatChannel, triggerPusher, userChannel } from "@/lib/pusher";
 
 const messageSchema = z.object({
   content: z.string().trim().min(1, "Write a message first.").max(2000, "Keep messages under 2000 characters."),
@@ -104,7 +105,7 @@ export async function GET(
     return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
   }
 
-  const [, messages] = await Promise.all([
+  const [, messages, readResult] = await Promise.all([
     prisma.user.update({
       where: { id: session.user.id },
       data: { lastSeenAt: new Date() }
@@ -155,9 +156,21 @@ export async function GET(
       }
     })
   ]);
+  const readCount = readResult.count;
+
+  if (readCount > 0) {
+    await triggerPusher(userChannel(session.user.id), "chat:read", {
+      conversationId: conversation.id,
+      readCount
+    });
+    await triggerPusher(chatChannel(conversation.id), "message:read", {
+      readerId: session.user.id
+    });
+  }
 
   return NextResponse.json({
-    messages: messages.map((message) => serializeMessage(message, session.user.id))
+    messages: messages.map((message) => serializeMessage(message, session.user.id)),
+    readCount
   });
 }
 
@@ -253,8 +266,21 @@ export async function POST(
       }
     })
   ]);
+  const serializedMessage = serializeMessage(message, session.user.id);
+  await triggerPusher(chatChannel(conversation.id), "message:new", {
+    message: serializedMessage
+  });
+  await triggerPusher(
+    [userChannel(conversation.adminId), userChannel(conversation.memberId)],
+    "chat:contact-updated",
+    {
+      conversationId: conversation.id,
+      senderId: session.user.id,
+      message: serializedMessage
+    }
+  );
 
   return NextResponse.json({
-    message: serializeMessage(message, session.user.id)
+    message: serializedMessage
   });
 }

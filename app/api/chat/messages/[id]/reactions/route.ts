@@ -2,25 +2,35 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerAuthSession } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { chatChannel, triggerPusher } from "@/lib/pusher";
 
 const reactionSchema = z.object({
   emoji: z.string().trim().min(1).max(8)
 });
 
-const allowedReactions = new Set(["👍", "❤️", "😂", "😮", "😢", "🙏"]);
+const allowedReactions = new Set([
+  "\u{1F44D}",
+  "\u{2764}\u{FE0F}",
+  "\u{1F602}",
+  "\u{1F62E}",
+  "\u{1F622}",
+  "\u{1F64F}"
+]);
 
 function summarizeReactions(reactions: { emoji: string; userId: string }[], currentUserId: string) {
-  const counts = new Map<string, { emoji: string; count: number; reactedByMe: boolean }>();
+  const counts = new Map<string, { emoji: string; count: number; reactedByMe: boolean; userIds: string[] }>();
 
   for (const reaction of reactions) {
     const current = counts.get(reaction.emoji) ?? {
       emoji: reaction.emoji,
       count: 0,
-      reactedByMe: false
+      reactedByMe: false,
+      userIds: []
     };
 
     current.count += 1;
     current.reactedByMe ||= reaction.userId === currentUserId;
+    current.userIds.push(reaction.userId);
     counts.set(reaction.emoji, current);
   }
 
@@ -48,6 +58,7 @@ export async function POST(
     where: { id },
     select: {
       id: true,
+      conversationId: true,
       conversation: {
         select: {
           adminId: true,
@@ -113,9 +124,15 @@ export async function POST(
       userId: true
     }
   });
+  const summarizedReactions = summarizeReactions(reactions, session.user.id);
+
+  await triggerPusher(chatChannel(message.conversationId), "message:reaction-updated", {
+    messageId: message.id,
+    reactions: summarizedReactions
+  });
 
   return NextResponse.json({
     messageId: message.id,
-    reactions: summarizeReactions(reactions, session.user.id)
+    reactions: summarizedReactions
   });
 }

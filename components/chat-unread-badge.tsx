@@ -1,13 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { getPusherClient } from "@/lib/pusher-client";
 import { cn } from "@/lib/utils";
 
 type ChatUnreadBadgeProps = {
   className?: string;
+  currentUserId?: string | null;
 };
 
-export function ChatUnreadBadge({ className }: ChatUnreadBadgeProps) {
+type ChatContactEvent = {
+  senderId?: string;
+};
+
+type ChatReadEvent = {
+  readCount?: number;
+};
+
+export function ChatUnreadBadge({ className, currentUserId }: ChatUnreadBadgeProps) {
   const [count, setCount] = useState(0);
 
   const loadUnreadCount = useCallback(async () => {
@@ -30,10 +40,43 @@ export function ChatUnreadBadge({ className }: ChatUnreadBadgeProps) {
 
   useEffect(() => {
     void loadUnreadCount();
-    const interval = window.setInterval(() => void loadUnreadCount(), 5000);
+    const updateLocalReadCount = (event: Event) => {
+      const detail = (event as CustomEvent<{ readCount?: number }>).detail;
+      setCount((current) => Math.max(0, current - (detail?.readCount ?? current)));
+    };
 
-    return () => window.clearInterval(interval);
-  }, [loadUnreadCount]);
+    window.addEventListener("alignops-chat-read", updateLocalReadCount);
+
+    if (!currentUserId) {
+      return () => window.removeEventListener("alignops-chat-read", updateLocalReadCount);
+    }
+
+    const pusher = getPusherClient();
+
+    if (!pusher) {
+      return () => window.removeEventListener("alignops-chat-read", updateLocalReadCount);
+    }
+
+    const channelName = `private-user-${currentUserId}`;
+    const channel = pusher.subscribe(channelName);
+    const updateUnreadCount = (payload: ChatContactEvent) => {
+      if (payload.senderId && payload.senderId !== currentUserId) {
+        setCount((current) => current + 1);
+      }
+    };
+    const updateReadCount = (payload: ChatReadEvent) => {
+      setCount((current) => Math.max(0, current - (payload.readCount ?? current)));
+    };
+
+    channel.bind("chat:contact-updated", updateUnreadCount);
+    channel.bind("chat:read", updateReadCount);
+
+    return () => {
+      channel.unbind("chat:contact-updated", updateUnreadCount);
+      channel.unbind("chat:read", updateReadCount);
+      window.removeEventListener("alignops-chat-read", updateLocalReadCount);
+    };
+  }, [currentUserId, loadUnreadCount]);
 
   if (count <= 0) {
     return null;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerAuthSession } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { chatChannel, triggerPusher, userChannel } from "@/lib/pusher";
 
 const deleteMessagesSchema = z.object({
   ids: z.array(z.string().min(1)).min(1, "Choose at least one message to delete.")
@@ -27,7 +28,7 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const result = await prisma.chatMessage.deleteMany({
+  const messages = await prisma.chatMessage.findMany({
     where: {
       id: {
         in: parsed.data.ids
@@ -42,8 +43,53 @@ export async function DELETE(request: Request) {
           }
         ]
       }
+    },
+    select: {
+      id: true,
+      conversationId: true,
+      conversation: {
+        select: {
+          adminId: true,
+          memberId: true
+        }
+      }
     }
   });
+
+  const result = await prisma.chatMessage.deleteMany({
+    where: {
+      id: {
+        in: messages.map((message) => message.id)
+      }
+    }
+  });
+  const messagesByConversation = new Map<string, typeof messages>();
+
+  for (const message of messages) {
+    messagesByConversation.set(message.conversationId, [
+      ...(messagesByConversation.get(message.conversationId) ?? []),
+      message
+    ]);
+  }
+
+  await Promise.all(
+    Array.from(messagesByConversation.entries()).map(([conversationId, conversationMessages]) => {
+      const firstMessage = conversationMessages[0];
+      const ids = conversationMessages.map((message) => message.id);
+
+      return Promise.all([
+        triggerPusher(chatChannel(conversationId), "message:deleted", { ids }),
+        triggerPusher(
+          [userChannel(firstMessage.conversation.adminId), userChannel(firstMessage.conversation.memberId)],
+          "chat:contact-updated",
+          {
+            conversationId,
+            deletedIds: ids
+          }
+        )
+      ]);
+    })
+  );
 
   return NextResponse.json({
     deletedCount: result.count

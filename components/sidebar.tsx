@@ -17,13 +17,14 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ChatUnreadBadge } from "@/components/chat-unread-badge";
-import type { UserRole } from "@/lib/models";
+import type { User, UserRole } from "@/lib/models";
 import { cn } from "@/lib/utils";
 
 type SidebarProps = {
   active: string;
   collapsed: boolean;
   onToggle: () => void;
+  currentUser: User | null;
  
   role: UserRole;
  
@@ -48,7 +49,7 @@ const navItems: NavItem[] = [
 ];
 
  
-export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
+export function Sidebar({ active, collapsed, currentUser, onToggle, role }: SidebarProps) {
   const items = (() => {
     if (role === "admin") {
       return [
@@ -131,7 +132,10 @@ export function Sidebar({ active, collapsed, onToggle, role }: SidebarProps) {
                     {item.label}
                   </span>
                   {item.key === "chat" ? (
-                    <ChatUnreadBadge className={collapsed ? "right-1 top-1" : "right-3 top-1/2 -translate-y-1/2"} />
+                    <ChatUnreadBadge
+                      className={collapsed ? "right-1 top-1" : "right-3 top-1/2 -translate-y-1/2"}
+                      currentUserId={currentUser?.id}
+                    />
                   ) : null}
                 </Link>
             );

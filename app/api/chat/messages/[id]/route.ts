@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerAuthSession } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { chatChannel, triggerPusher, userChannel } from "@/lib/pusher";
 
 const editMessageSchema = z.object({
   content: z.string().trim().min(1, "Write a message first.").max(2000, "Keep messages under 2000 characters.")
@@ -145,8 +146,21 @@ export async function PATCH(
       }
     }
   });
+  const serializedMessage = serializeMessage(updated, session.user.id);
+  await triggerPusher(chatChannel(updated.conversationId), "message:updated", {
+    message: serializedMessage
+  });
+  await triggerPusher(
+    [userChannel(message.conversation.adminId), userChannel(message.conversation.memberId)],
+    "chat:contact-updated",
+    {
+      conversationId: updated.conversationId,
+      senderId: session.user.id,
+      message: serializedMessage
+    }
+  );
 
   return NextResponse.json({
-    message: serializeMessage(updated, session.user.id)
+    message: serializedMessage
   });
 }

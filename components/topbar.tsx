@@ -69,7 +69,7 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
               >
                 <HelpCircle className="size-4" aria-hidden="true" />
               </Button>
-              <ChatNotificationBell />
+              <ChatNotificationBell currentUserId={currentUser?.id} />
               <SignOutButton />
             </div>
           </div>
@@ -105,7 +105,7 @@ export function Topbar({ currentUser, role, title }: TopbarProps) {
                   >
                     <HelpCircle className="size-4" aria-hidden="true" />
                   </Button>
-                  <ChatNotificationBell />
+                  <ChatNotificationBell currentUserId={currentUser?.id} />
                 </div>
               </div>
 

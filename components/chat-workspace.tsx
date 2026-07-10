@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { roleLabels } from "@/lib/constants";
+import { getPusherClient } from "@/lib/pusher-client";
 import type { User, UserRole } from "@/lib/models";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +52,20 @@ type ChatMessage = {
     emoji: string;
     count: number;
     reactedByMe: boolean;
+    userIds?: string[];
   }[];
+};
+
+type ChatContactEvent = {
+  conversationId: string;
+  senderId?: string;
+  message?: ChatMessage;
+  deletedIds?: string[];
+};
+
+type ChatReadEvent = {
+  conversationId: string;
+  readCount: number;
 };
 
 type ChatWorkspaceProps = {
@@ -99,7 +113,7 @@ function roleTone(role: UserRole) {
   return tones[role];
 }
 
-const reactionOptions = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const reactionOptions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E}", "\u{1F622}", "\u{1F64F}"];
 
 export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [contacts, setContacts] = useState<ChatContact[]>([]);
@@ -112,6 +126,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [notification, setNotification] = useState("");
+  const [realtimeIssue, setRealtimeIssue] = useState("");
   const [isPending, startTransition] = useTransition();
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(() => new Set());
   const [deleteSelectionMode, setDeleteSelectionMode] = useState(false);
@@ -127,6 +142,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const messageCountRef = useRef(0);
   const lastTypingSentRef = useRef(0);
   const typingStoppedRef = useRef(true);
+  const typingTimeoutsRef = useRef<Record<string, number>>({});
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.participant.id === selectedParticipantId) ?? null,
@@ -142,6 +158,78 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
     return groups;
   }, [contacts]);
+
+  const upsertMessage = useCallback((nextMessage: ChatMessage) => {
+    setMessages((current) => {
+      const exists = current.some((message) => message.id === nextMessage.id);
+      const nextMessages = exists
+        ? current.map((message) => (message.id === nextMessage.id ? nextMessage : message))
+        : [...current, nextMessage];
+
+      messageCountRef.current = nextMessages.length;
+      return nextMessages;
+    });
+  }, []);
+
+  const removeMessages = useCallback((ids: string[]) => {
+    const deletedIds = new Set(ids);
+
+    setMessages((current) => {
+      const nextMessages = current.filter((message) => !deletedIds.has(message.id));
+      messageCountRef.current = nextMessages.length;
+      return nextMessages;
+    });
+    setSelectedMessageIds((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, []);
+
+  const normalizeReactions = useCallback((reactions: ChatMessage["reactions"]) =>
+    reactions.map((reaction) => ({
+      ...reaction,
+      reactedByMe: reaction.userIds ? reaction.userIds.includes(currentUser.id) : reaction.reactedByMe
+    })), [currentUser.id]);
+
+  const applyContactEvent = useCallback((payload: ChatContactEvent) => {
+    setContacts((current) => {
+      const updatedContacts = current.map((contact) => {
+        if (contact.conversationId !== payload.conversationId) {
+          return contact;
+        }
+
+        const isIncoming = Boolean(payload.senderId && payload.senderId !== currentUser.id);
+        const isOpenConversation = payload.conversationId === selectedConversationId;
+
+        return {
+          ...contact,
+          lastMessage: payload.message ?? contact.lastMessage,
+          unreadCount: isIncoming && !isOpenConversation ? contact.unreadCount + 1 : contact.unreadCount,
+          updatedAt: payload.message?.createdAt ?? contact.updatedAt
+        };
+      });
+
+      contactsRef.current = updatedContacts;
+      return updatedContacts;
+    });
+  }, [currentUser.id, selectedConversationId]);
+
+  const applyReadEvent = useCallback((payload: ChatReadEvent) => {
+    setContacts((current) => {
+      const updatedContacts = current.map((contact) =>
+        contact.conversationId === payload.conversationId
+          ? {
+              ...contact,
+              unreadCount: 0
+            }
+          : contact
+      );
+
+      contactsRef.current = updatedContacts;
+      return updatedContacts;
+    });
+  }, []);
 
   const loadContacts = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) {
@@ -190,6 +278,14 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     setLoadingContacts(false);
   }, []);
 
+  const refreshContactsWithoutRealtime = useCallback(async () => {
+    if (getPusherClient()) {
+      return;
+    }
+
+    await loadContacts({ silent: true });
+  }, [loadContacts]);
+
   const ensureConversation = useCallback(async (contact: ChatContact) => {
     if (contact.conversationId) {
       setSelectedConversationId(contact.conversationId);
@@ -213,9 +309,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     }
 
     setSelectedConversationId(payload.conversationId as string);
-    await loadContacts({ silent: true });
+    await refreshContactsWithoutRealtime();
     return payload.conversationId as string;
-  }, [loadContacts]);
+  }, [refreshContactsWithoutRealtime]);
 
   const loadMessages = useCallback(async (
     conversationId: string,
@@ -240,6 +336,33 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     messageCountRef.current = nextMessages.length;
     setMessages(nextMessages);
     setLoadingMessages(false);
+
+    if ((payload.readCount ?? 0) > 0) {
+      window.dispatchEvent(new CustomEvent("alignops-chat-read", {
+        detail: {
+          readCount: payload.readCount
+        }
+      }));
+    }
+  }, []);
+
+  const markConversationRead = useCallback((conversationId: string) => {
+    void fetch(`/api/chat/conversations/${conversationId}/read`, {
+      method: "POST"
+    }).catch(() => null);
+  }, []);
+
+  const loadTypingUsers = useCallback(async (conversationId: string) => {
+    const response = await fetch(`/api/chat/conversations/${conversationId}/typing`, {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json();
+    setTypingUsers(payload.users ?? []);
   }, []);
 
   function selectContact(contact: ChatContact) {
@@ -253,17 +376,28 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     setDraft("");
     setSelectedMessageIds(new Set());
     setSelectedParticipantId(contact.participant.id);
+    if (contact.unreadCount > 0) {
+      window.dispatchEvent(new CustomEvent("alignops-chat-read", {
+        detail: {
+          readCount: contact.unreadCount
+        }
+      }));
+    }
+    setContacts((current) => {
+      const nextContacts = current.map((item) =>
+        item.participant.id === contact.participant.id
+          ? {
+              ...item,
+              unreadCount: 0
+            }
+          : item
+      );
+
+      contactsRef.current = nextContacts;
+      return nextContacts;
+    });
     messageCountRef.current = 0;
     setMessages([]);
-    startTransition(() => {
-      void (async () => {
-        const conversationId = await ensureConversation(contact);
-
-        if (conversationId) {
-          await loadMessages(conversationId);
-        }
-      })();
-    });
   }
 
   function sendMessage() {
@@ -311,15 +445,8 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
           composerRef.current.style.height = "44px";
           composerRef.current.style.overflowY = "hidden";
         }
-        setMessages((current) => {
-          const message = payload.message as ChatMessage;
-          const nextMessages = editingMessageId
-            ? current.map((item) => (item.id === message.id ? message : item))
-            : [...current, message];
-          messageCountRef.current = nextMessages.length;
-          return nextMessages;
-        });
-        await loadContacts({ silent: true });
+        upsertMessage(payload.message as ChatMessage);
+        await refreshContactsWithoutRealtime();
       })();
     });
   }
@@ -381,19 +508,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       return;
     }
 
-    setMessages((current) => {
-      const deletedIds = new Set(ids);
-      const nextMessages = current.filter((message) => !deletedIds.has(message.id));
-      messageCountRef.current = nextMessages.length;
-      return nextMessages;
-    });
-    setSelectedMessageIds((current) => {
-      const next = new Set(current);
-      ids.forEach((id) => next.delete(id));
-      return next;
-    });
+    removeMessages(ids);
     setFeedback(`${payload.deletedCount ?? ids.length} message${ids.length === 1 ? "" : "s"} deleted.`);
-    await loadContacts({ silent: true });
+    await refreshContactsWithoutRealtime();
   }
 
   function deleteSelectedMessages() {
@@ -452,7 +569,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
             message.id === payload.messageId
               ? {
                   ...message,
-                  reactions: payload.reactions
+                  reactions: normalizeReactions(payload.reactions)
                 }
               : message
           )
@@ -519,15 +636,28 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }, [ensureConversation, loadMessages, selectedParticipantId]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      void loadContacts({ silent: true });
-      if (selectedConversationId) {
-        void loadMessages(selectedConversationId, { silent: true });
-      }
-    }, 2500);
+    const pusher = getPusherClient();
 
-    return () => window.clearInterval(interval);
-  }, [loadContacts, loadMessages, selectedConversationId]);
+    if (!pusher) {
+      setRealtimeIssue("Realtime is disabled locally because NEXT_PUBLIC_PUSHER_KEY is missing. Add Pusher env vars and restart npm run dev.");
+      return;
+    }
+
+    setRealtimeIssue("");
+
+    const channelName = `private-user-${currentUser.id}`;
+    const channel = pusher.subscribe(channelName);
+    const updateContacts = (payload: ChatContactEvent) => applyContactEvent(payload);
+    const updateReadState = (payload: ChatReadEvent) => applyReadEvent(payload);
+
+    channel.bind("chat:contact-updated", updateContacts);
+    channel.bind("chat:read", updateReadState);
+
+    return () => {
+      channel.unbind("chat:contact-updated", updateContacts);
+      channel.unbind("chat:read", updateReadState);
+    };
+  }, [applyContactEvent, applyReadEvent, currentUser.id]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -535,26 +665,132 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       return;
     }
 
-    const loadTypingUsers = async () => {
-      const response = await fetch(`/api/chat/conversations/${selectedConversationId}/typing`, {
-        cache: "no-store"
-      });
+    const pusher = getPusherClient();
 
-      if (!response.ok) {
+    if (!pusher) {
+      setRealtimeIssue("Realtime is disabled locally because NEXT_PUBLIC_PUSHER_KEY is missing. Using slower fallback refresh.");
+      void loadTypingUsers(selectedConversationId);
+      const interval = window.setInterval(() => {
+        void loadMessages(selectedConversationId, { silent: true });
+        void loadTypingUsers(selectedConversationId);
+      }, 5000);
+
+      return () => window.clearInterval(interval);
+    }
+
+    setRealtimeIssue("");
+
+    const channelName = `private-chat-${selectedConversationId}`;
+    const channel = pusher.subscribe(channelName);
+
+    const handleNewMessage = (payload: { message: ChatMessage }) => {
+      upsertMessage(payload.message);
+
+      if (payload.message.senderId !== currentUser.id) {
+        markConversationRead(payload.message.conversationId);
+      }
+    };
+    const handleUpdatedMessage = (payload: { message: ChatMessage }) => {
+      upsertMessage({
+        ...payload.message,
+        reactions: normalizeReactions(payload.message.reactions)
+      });
+    };
+    const handleDeletedMessage = (payload: { ids: string[] }) => {
+      removeMessages(payload.ids);
+    };
+    const handleReactionUpdated = (payload: { messageId: string; reactions: ChatMessage["reactions"] }) => {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === payload.messageId
+            ? {
+                ...message,
+                reactions: normalizeReactions(payload.reactions)
+              }
+            : message
+        )
+      );
+    };
+    const handleTypingUpdate = (payload: {
+      user: { id: string; name: string; avatar: string };
+      typing: boolean;
+    }) => {
+      if (payload.user.id === currentUser.id) {
         return;
       }
 
-      const payload = await response.json();
-      setTypingUsers(payload.users ?? []);
+      window.clearTimeout(typingTimeoutsRef.current[payload.user.id]);
+
+      if (!payload.typing) {
+        setTypingUsers((current) => current.filter((user) => user.id !== payload.user.id));
+        return;
+      }
+
+      setTypingUsers((current) => {
+        const exists = current.some((user) => user.id === payload.user.id);
+        return exists ? current : [...current, payload.user];
+      });
+      typingTimeoutsRef.current[payload.user.id] = window.setTimeout(() => {
+        setTypingUsers((current) => current.filter((user) => user.id !== payload.user.id));
+      }, 5000);
+    };
+    const handleMessageRead = (payload: { readerId: string }) => {
+      if (payload.readerId === currentUser.id) {
+        return;
+      }
+
+      const readAt = new Date().toISOString();
+      setMessages((current) =>
+        current.map((message) =>
+          message.senderId === currentUser.id && !message.readAt
+            ? {
+                ...message,
+                readAt
+              }
+            : message
+        )
+      );
     };
 
-    void loadTypingUsers();
-    const interval = window.setInterval(() => {
-      void loadTypingUsers();
-    }, 1800);
+    channel.bind("message:new", handleNewMessage);
+    channel.bind("message:updated", handleUpdatedMessage);
+    channel.bind("message:deleted", handleDeletedMessage);
+    channel.bind("message:reaction-updated", handleReactionUpdated);
+    channel.bind("typing:update", handleTypingUpdate);
+    channel.bind("message:read", handleMessageRead);
+    channel.bind("pusher:subscription_error", () => {
+      setRealtimeIssue("Realtime channel authorization failed. Check Pusher env vars and restart the dev server.");
+    });
+    pusher.connection.bind("unavailable", () => {
+      setRealtimeIssue("Realtime connection is unavailable. Check network/Pusher settings.");
+    });
+    pusher.connection.bind("failed", () => {
+      setRealtimeIssue("Realtime connection failed. Check the Pusher key and cluster.");
+    });
 
-    return () => window.clearInterval(interval);
-  }, [selectedConversationId]);
+    return () => {
+      channel.unbind("message:new", handleNewMessage);
+      channel.unbind("message:updated", handleUpdatedMessage);
+      channel.unbind("message:deleted", handleDeletedMessage);
+      channel.unbind("message:reaction-updated", handleReactionUpdated);
+      channel.unbind("typing:update", handleTypingUpdate);
+      channel.unbind("message:read", handleMessageRead);
+      Object.values(typingTimeoutsRef.current).forEach((timeout) => window.clearTimeout(timeout));
+      typingTimeoutsRef.current = {};
+      pusher.connection.unbind("unavailable");
+      pusher.connection.unbind("failed");
+      pusher.unsubscribe(channelName);
+    };
+  }, [
+    currentUser.id,
+    loadMessages,
+    loadTypingUsers,
+    normalizeReactions,
+    removeMessages,
+    markConversationRead,
+    selectedConversationId,
+    upsertMessage
+  ]);
 
   useEffect(() => {
     if (!selectedConversationId || editingMessageId || !draft.trim()) {
@@ -991,6 +1227,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
             </div>
 
             <footer className="border-t bg-card p-3">
+              {realtimeIssue ? (
+                <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                  {realtimeIssue}
+                </p>
+              ) : null}
               {feedback ? (
                 <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-950/40 dark:text-red-200">
                   {feedback}
