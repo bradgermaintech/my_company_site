@@ -74,6 +74,12 @@ export async function GET(
               }
             }
           }
+        },
+        reactions: {
+          select: {
+            emoji: true,
+            userId: true
+          }
         }
       },
       orderBy: { createdAt: "asc" },
@@ -208,6 +214,12 @@ export async function POST(
                 name: true
               }
             }
+          }
+        },
+        reactions: {
+          select: {
+            emoji: true,
+            userId: true
           }
         }
       }

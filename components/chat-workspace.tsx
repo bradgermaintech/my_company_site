@@ -95,6 +95,7 @@ type ChatReadEvent = {
 type ChatGroupUpdateEvent = {
   groupId: string;
   senderId?: string;
+  groupName?: string;
 };
 
 type ThreadKind = "direct" | "group";
@@ -164,6 +165,18 @@ function formatLastSeen(value?: string | null, online?: boolean) {
   }).format(date)}`;
 }
 
+function groupInitials(name: string) {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return initials || "G";
+}
+
 function roleTone(role: UserRole) {
   const tones: Record<UserRole, string> = {
     manager: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950",
@@ -197,6 +210,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(() => new Set());
   const [deleteSelectionMode, setDeleteSelectionMode] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [groupDeleteConfirmOpen, setGroupDeleteConfirmOpen] = useState(false);
   const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
   const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<{ id: string; name: string; avatar: string }[]>([]);
@@ -556,6 +570,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     setTypingUsers([]);
     setDeleteSelectionMode(false);
     setDeleteConfirmOpen(false);
+    setGroupDeleteConfirmOpen(false);
     setDraft("");
     setSelectedMessageIds(new Set());
     setSelectedParticipantId(contact.participant.id);
@@ -608,6 +623,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     setTypingUsers([]);
     setDeleteSelectionMode(false);
     setDeleteConfirmOpen(false);
+    setGroupDeleteConfirmOpen(false);
     setDraft("");
     setSelectedMessageIds(new Set());
     setSelectedThreadKind("group");
@@ -854,19 +870,20 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   }
 
   function reactToMessage(messageId: string, emoji: string) {
-    if (isGroupThread) {
-      return;
-    }
-
     startTransition(() => {
       void (async () => {
-        const response = await fetch(`/api/chat/messages/${messageId}/reactions`, {
+        const response = await fetch(
+          isGroupThread
+            ? `/api/chat/groups/${selectedGroupId}/reactions`
+            : `/api/chat/messages/${messageId}/reactions`,
+          {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ emoji })
-        });
+          body: JSON.stringify(isGroupThread ? { messageId, emoji } : { emoji })
+          }
+        );
         const payload = await response.json();
 
         if (!response.ok) {
@@ -885,6 +902,40 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
           )
         );
         setReactionTargetId(null);
+      })();
+    });
+  }
+
+  function deleteSelectedGroup() {
+    if (
+      currentUser.role !== "manager" ||
+      !selectedGroup ||
+      selectedGroup.createdById !== currentUser.id
+    ) {
+      return;
+    }
+
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch(`/api/chat/groups/${selectedGroup.id}`, {
+          method: "DELETE"
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setFeedback(payload.error ?? "Unable to delete this group chat.");
+          return;
+        }
+
+        activeThreadRef.current = "";
+        setGroups((current) => current.filter((group) => group.id !== selectedGroup.id));
+        setSelectedGroupId("");
+        setSelectedThreadKind("direct");
+        setMessages([]);
+        setGroupPanelOpen(false);
+        setGroupDeleteConfirmOpen(false);
+        setNotification(`${selectedGroup.name} was deleted`);
+        window.setTimeout(() => setNotification(""), 3500);
       })();
     });
   }
@@ -1034,15 +1085,31 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
       void loadGroups({ silent: true });
     };
+    const removeDeletedGroup = (payload: ChatGroupUpdateEvent) => {
+      setGroups((current) => current.filter((group) => group.id !== payload.groupId));
+
+      if (payload.groupId === selectedGroupId) {
+        activeThreadRef.current = "";
+        setSelectedGroupId("");
+        setSelectedThreadKind("direct");
+        setMessages([]);
+        setGroupPanelOpen(false);
+      }
+
+      setNotification(`${payload.groupName ?? "Group chat"} was deleted`);
+      window.setTimeout(() => setNotification(""), 3500);
+    };
 
     channel.bind("chat:contact-updated", updateContacts);
     channel.bind("chat:read", updateReadState);
     channel.bind("group:updated", updateGroups);
+    channel.bind("group:deleted", removeDeletedGroup);
 
     return () => {
       channel.unbind("chat:contact-updated", updateContacts);
       channel.unbind("chat:read", updateReadState);
       channel.unbind("group:updated", updateGroups);
+      channel.unbind("group:deleted", removeDeletedGroup);
     };
   }, [applyContactEvent, applyReadEvent, currentUser.id, loadGroups, selectedGroupId]);
 
@@ -1163,8 +1230,8 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     if (selectedThreadKind === "direct") {
       channel.bind("message:updated", handleUpdatedMessage);
       channel.bind("message:deleted", handleDeletedMessage);
-      channel.bind("message:reaction-updated", handleReactionUpdated);
     }
+    channel.bind("message:reaction-updated", handleReactionUpdated);
     channel.bind("typing:update", handleTypingUpdate);
     if (selectedThreadKind === "direct") {
       channel.bind("message:read", handleMessageRead);
@@ -1184,8 +1251,8 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       if (selectedThreadKind === "direct") {
         channel.unbind("message:updated", handleUpdatedMessage);
         channel.unbind("message:deleted", handleDeletedMessage);
-        channel.unbind("message:reaction-updated", handleReactionUpdated);
       }
+      channel.unbind("message:reaction-updated", handleReactionUpdated);
       channel.unbind("typing:update", handleTypingUpdate);
       if (selectedThreadKind === "direct") {
         channel.unbind("message:read", handleMessageRead);
@@ -1286,6 +1353,33 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               <Button type="button" variant="destructive" disabled={isPending} onClick={deleteSelectedMessages}>
                 <Trash2 className="size-4" aria-hidden="true" />
                 Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {groupDeleteConfirmOpen && selectedGroup ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border bg-card p-5 text-card-foreground shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300">
+                <Trash2 className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Delete {selectedGroup.name}?</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  The group and its complete message history will be permanently deleted for every member.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setGroupDeleteConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" disabled={isPending} onClick={deleteSelectedGroup}>
+                <Trash2 className="size-4" aria-hidden="true" />
+                Delete group
               </Button>
             </div>
           </div>
@@ -1416,7 +1510,6 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               <div className="grid gap-2">
                 {sortedGroups.map((group) => {
                   const selected = selectedThreadKind === "group" && selectedGroupId === group.id;
-                  const visibleMembers = group.members.slice(0, 3);
 
                   return (
                     <button
@@ -1434,23 +1527,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                         </span>
                       ) : null}
                       <div className="flex items-start gap-3">
-                        <div className="relative flex h-10 w-12 shrink-0 items-center">
-                          {visibleMembers.length > 0 ? (
-                            visibleMembers.map((member, index) => (
-                              <span
-                                key={member.id}
-                                className="absolute flex size-9 items-center justify-center rounded-full border-2 border-card bg-muted text-[11px] font-bold text-foreground shadow-sm"
-                                style={{ left: `${index * 16}px`, zIndex: visibleMembers.length - index }}
-                              >
-                                {member.avatar}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                              <Users className="size-4" aria-hidden="true" />
-                            </span>
-                          )}
-                        </div>
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-sm">
+                          {groupInitials(group.name)}
+                        </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <p className="truncate font-semibold text-foreground">{group.name}</p>
@@ -1575,17 +1654,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
             <header className="flex items-center justify-between gap-3 border-b bg-card px-5 py-3">
               <div className="flex min-w-0 items-center gap-3">
                 {selectedGroup ? (
-                  <div className="relative flex h-11 w-14 shrink-0 items-center">
-                    {selectedGroup.members.slice(0, 3).map((member, index) => (
-                      <span
-                        key={member.id}
-                        className="absolute flex size-10 items-center justify-center rounded-full border-2 border-card bg-muted text-xs font-bold text-foreground shadow-sm"
-                        style={{ left: `${index * 14}px`, zIndex: 4 - index }}
-                      >
-                        {member.avatar}
-                      </span>
-                    ))}
-                  </div>
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shadow-sm">
+                    {groupInitials(selectedGroup.name)}
+                  </span>
                 ) : (
                   <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                     {selectedContact?.participant.avatar}
@@ -1610,15 +1681,30 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
               </div>
               <div className="flex items-center gap-2">
                 {selectedGroup ? (
-                  <Button
-                    type="button"
-                    variant={groupPanelOpen ? "secondary" : "outline"}
-                    size="sm"
-                    onClick={() => setGroupPanelOpen((current) => !current)}
-                  >
-                    <Users className="size-4" aria-hidden="true" />
-                    Members
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant={groupPanelOpen ? "secondary" : "outline"}
+                      size="sm"
+                      onClick={() => setGroupPanelOpen((current) => !current)}
+                    >
+                      <Users className="size-4" aria-hidden="true" />
+                      Members
+                    </Button>
+                    {currentUser.role === "manager" && selectedGroup.createdById === currentUser.id ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                        aria-label="Delete group chat"
+                        title="Delete group"
+                        onClick={() => setGroupDeleteConfirmOpen(true)}
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </>
                 ) : null}
                 <Badge variant="secondary" className="capitalize">
                   {selectedGroup ? "Group" : selectedContact?.participant.role}
@@ -1636,34 +1722,67 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                       ? "Managers can message managers, bidders, callers, and developers directly."
                       : "Your chat access is limited to manager conversations."}
                 </div>
-                {currentUser.role === "manager" && deleteSelectionMode && !selectedGroup ? (
-                  <div className="flex items-center gap-2">
+                {currentUser.role === "manager" && !selectedGroup ? (
+                  deleteSelectionMode ? (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isPending || messages.length === 0}
+                        onClick={() =>
+                          setSelectedMessageIds((current) =>
+                            current.size === messages.length
+                              ? new Set()
+                              : new Set(messages.map((message) => message.id))
+                          )
+                        }
+                      >
+                        <CheckCheck className="size-4" aria-hidden="true" />
+                        {selectedMessageIds.size === messages.length && messages.length > 0
+                          ? "Clear all"
+                          : "Select all"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isPending}
+                        onClick={cancelDeleteSelection}
+                      >
+                        <X className="size-4" aria-hidden="true" />
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={isPending || selectedMessageIds.size === 0}
+                        onClick={() => setDeleteConfirmOpen(true)}
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                        Delete selected ({selectedMessageIds.size})
+                      </Button>
+                    </div>
+                  ) : (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      disabled={isPending}
-                      onClick={cancelDeleteSelection}
-                    >
-                      <X className="size-4" aria-hidden="true" />
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      disabled={isPending || selectedMessageIds.size === 0}
-                      onClick={() => setDeleteConfirmOpen(true)}
+                      onClick={() => {
+                        setDeleteSelectionMode(true);
+                        setSelectedMessageIds(new Set());
+                      }}
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
-                      Delete selected ({selectedMessageIds.size})
+                      Select messages
                     </Button>
-                  </div>
+                  )
                 ) : null}
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-background px-4 py-5">
+            <div className="flex-1 overflow-y-auto bg-background px-4 pb-5 pt-12">
               <div className="mx-auto flex max-w-4xl flex-col gap-3">
                 {loadingMessages && !messages.length ? (
                     <div className="self-center rounded-full border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground">
@@ -1671,7 +1790,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                   </div>
                 ) : null}
 
-                {messages.map((message) => {
+                {messages.map((message, messageIndex) => {
                   const mine = message.senderId === currentUser.id;
                   const selected = selectedMessageIds.has(message.id);
                   const canManagerManage = currentUser.role === "manager" && !selectedGroup;
@@ -1710,17 +1829,15 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                             mine ? "right-1" : "left-1"
                           )}
                         >
-                          {!selectedGroup ? (
-                            <button
-                              type="button"
-                              className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              aria-label="React to message"
-                              title="React"
-                              onClick={() => setReactionTargetId((current) => (current === message.id ? null : message.id))}
-                            >
-                              <SmilePlus className="size-4" aria-hidden="true" />
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            aria-label="React to message"
+                            title="React"
+                            onClick={() => setReactionTargetId((current) => (current === message.id ? null : message.id))}
+                          >
+                            <SmilePlus className="size-4" aria-hidden="true" />
+                          </button>
                           <button
                             type="button"
                             className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1756,10 +1873,11 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           )}
                         </div>
 
-                        {!selectedGroup && reactionTargetId === message.id ? (
+                        {reactionTargetId === message.id ? (
                           <div
                             className={cn(
-                              "absolute -top-20 z-20 flex items-center gap-1 rounded-full border bg-popover px-2 py-1.5 text-popover-foreground shadow-xl",
+                              "absolute z-20 flex items-center gap-1 rounded-full border bg-popover px-2 py-1.5 text-popover-foreground shadow-xl",
+                              messageIndex === 0 ? "top-full mt-2" : "-top-20",
                               mine ? "right-0" : "left-0"
                             )}
                           >
@@ -1823,7 +1941,7 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                           </p>
                         </div>
 
-                        {!selectedGroup && message.reactions.length > 0 ? (
+                        {message.reactions.length > 0 ? (
                           <div className={cn("mt-1 flex flex-wrap gap-1", mine ? "justify-end" : "justify-start")}>
                             {message.reactions.map((reaction) => (
                               <button

@@ -25,6 +25,7 @@ export type ChatGroupSerializedMessage = {
     emoji: string;
     count: number;
     reactedByMe: boolean;
+    userIds: string[];
   }[];
 };
 
@@ -79,9 +80,32 @@ export function serializeChatGroupMessage(
         name: string;
       };
     } | null;
+    reactions?: {
+      emoji: string;
+      userId: string;
+    }[];
   },
   currentUserId: string
 ): ChatGroupSerializedMessage {
+  const reactionCounts = new Map<
+    string,
+    { emoji: string; count: number; reactedByMe: boolean; userIds: string[] }
+  >();
+
+  for (const reaction of message.reactions ?? []) {
+    const current = reactionCounts.get(reaction.emoji) ?? {
+      emoji: reaction.emoji,
+      count: 0,
+      reactedByMe: false,
+      userIds: []
+    };
+
+    current.count += 1;
+    current.reactedByMe ||= reaction.userId === currentUserId;
+    current.userIds.push(reaction.userId);
+    reactionCounts.set(reaction.emoji, current);
+  }
+
   return {
     id: message.id,
     groupId: message.groupId,
@@ -99,6 +123,6 @@ export function serializeChatGroupMessage(
           senderName: message.replyTo.sender.name
         }
       : null,
-    reactions: []
+    reactions: Array.from(reactionCounts.values())
   };
 }
