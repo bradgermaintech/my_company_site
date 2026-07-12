@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   SmilePlus,
   Trash2,
+  UserMinus,
+  UserPlus,
   Users,
   X
 } from "lucide-react";
@@ -96,6 +98,17 @@ type ChatGroupUpdateEvent = {
   groupId: string;
   senderId?: string;
   groupName?: string;
+  addedMemberIds?: string[];
+  removedMemberIds?: string[];
+};
+
+type PresenceMember = {
+  id: string;
+  info?: {
+    name?: string;
+    role?: UserRole;
+    avatar?: string;
+  };
 };
 
 type ThreadKind = "direct" | "group";
@@ -219,6 +232,9 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const [groupMemberIds, setGroupMemberIds] = useState<Set<string>>(() => new Set());
   const [groupPanelOpen, setGroupPanelOpen] = useState(false);
   const [groupPanelTab, setGroupPanelTab] = useState<GroupPanelTab>("members");
+  const [groupMembersManageOpen, setGroupMembersManageOpen] = useState(false);
+  const [managedGroupMemberIds, setManagedGroupMemberIds] = useState<Set<string>>(() => new Set());
+  const [memberRemovalTarget, setMemberRemovalTarget] = useState<ChatParticipant | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const unreadSnapshotRef = useRef(0);
@@ -229,6 +245,8 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
   const typingStoppedRef = useRef(true);
   const typingTimeoutsRef = useRef<Record<string, number>>({});
   const activeThreadRef = useRef("");
+  const presenceReadyRef = useRef(false);
+  const onlineUserIdsRef = useRef<Set<string>>(new Set());
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.participant.id === selectedParticipantId) ?? null,
@@ -292,6 +310,85 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       reactedByMe: reaction.userIds ? reaction.userIds.includes(currentUser.id) : reaction.reactedByMe
     })), [currentUser.id]);
 
+  const setUserPresence = useCallback((userId: string, online: boolean) => {
+    const lastSeenAt = new Date().toISOString();
+
+    if (online) {
+      onlineUserIdsRef.current.add(userId);
+    } else {
+      onlineUserIdsRef.current.delete(userId);
+    }
+
+    setContacts((current) => {
+      const next = current.map((contact) =>
+        contact.participant.id === userId
+          ? {
+              ...contact,
+              participant: {
+                ...contact.participant,
+                online,
+                lastSeenAt: online ? contact.participant.lastSeenAt : lastSeenAt
+              }
+            }
+          : contact
+      );
+      contactsRef.current = next;
+      return next;
+    });
+    setEligibleMembers((current) =>
+      current.map((member) =>
+        member.id === userId
+          ? {
+              ...member,
+              online,
+              lastSeenAt: online ? member.lastSeenAt : lastSeenAt
+            }
+          : member
+      )
+    );
+    setGroups((current) =>
+      current.map((group) => ({
+        ...group,
+        members: group.members.map((member) =>
+          member.id === userId
+            ? {
+                ...member,
+                online,
+                lastSeenAt: online ? member.lastSeenAt : lastSeenAt
+              }
+            : member
+        )
+      }))
+    );
+  }, []);
+
+  const applyPresenceSnapshot = useCallback((onlineIds: Set<string>) => {
+    onlineUserIdsRef.current = onlineIds;
+    setContacts((current) => {
+      const next = current.map((contact) => ({
+        ...contact,
+        participant: {
+          ...contact.participant,
+          online: onlineIds.has(contact.participant.id)
+        }
+      }));
+      contactsRef.current = next;
+      return next;
+    });
+    setEligibleMembers((current) =>
+      current.map((member) => ({ ...member, online: onlineIds.has(member.id) }))
+    );
+    setGroups((current) =>
+      current.map((group) => ({
+        ...group,
+        members: group.members.map((member) => ({
+          ...member,
+          online: onlineIds.has(member.id)
+        }))
+      }))
+    );
+  }, []);
+
   const applyContactEvent = useCallback((payload: ChatContactEvent) => {
     setContacts((current) => {
       const updatedContacts = current.map((contact) => {
@@ -347,7 +444,17 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       return;
     }
 
-    const nextContacts = payload.contacts as ChatContact[];
+    const nextContacts = (payload.contacts as ChatContact[]).map((contact) =>
+      presenceReadyRef.current
+        ? {
+            ...contact,
+            participant: {
+              ...contact.participant,
+              online: onlineUserIdsRef.current.has(contact.participant.id)
+            }
+          }
+        : contact
+    );
     const unreadTotal = nextContacts.reduce((total, contact) => total + contact.unreadCount, 0);
 
     if (contactsLoadedRef.current && unreadTotal > unreadSnapshotRef.current) {
@@ -402,8 +509,26 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
       return;
     }
 
-    setGroups(payload.groups as ChatGroup[]);
-    setEligibleMembers((payload.eligibleMembers ?? []) as (User & { online?: boolean })[]);
+    const nextGroups = (payload.groups as ChatGroup[]).map((group) => ({
+      ...group,
+      members: group.members.map((member) => ({
+        ...member,
+        online: presenceReadyRef.current
+          ? onlineUserIdsRef.current.has(member.id)
+          : member.online
+      }))
+    }));
+    const nextEligibleMembers = ((payload.eligibleMembers ?? []) as ChatParticipant[]).map(
+      (member) => ({
+        ...member,
+        online: presenceReadyRef.current
+          ? onlineUserIdsRef.current.has(member.id)
+          : member.online
+      })
+    );
+
+    setGroups(nextGroups);
+    setEligibleMembers(nextEligibleMembers);
     if (!silent) {
       setLoadingContacts(false);
     }
@@ -701,6 +826,91 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
         await refreshGroupsWithoutRealtime();
       })();
     });
+  }
+
+  function openGroupMemberManager() {
+    if (
+      currentUser.role !== "manager" ||
+      !selectedGroup ||
+      selectedGroup.createdById !== currentUser.id
+    ) {
+      return;
+    }
+
+    setManagedGroupMemberIds(
+      new Set(
+        selectedGroup.members
+          .filter((member) => member.id !== selectedGroup.createdById)
+          .map((member) => member.id)
+      )
+    );
+    setGroupMembersManageOpen(true);
+  }
+
+  function toggleManagedGroupMember(userId: string) {
+    setManagedGroupMemberIds((current) => {
+      const next = new Set(current);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  }
+
+  function updateGroupMembers(memberIds: string[], successMessage: string) {
+    if (
+      currentUser.role !== "manager" ||
+      !selectedGroup ||
+      selectedGroup.createdById !== currentUser.id
+    ) {
+      return;
+    }
+
+    const groupId = selectedGroup.id;
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch(`/api/chat/groups/${groupId}/members`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ memberIds })
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setFeedback(payload.error ?? "Unable to update group members.");
+          return;
+        }
+
+        await loadGroups({ silent: true });
+        setGroupMembersManageOpen(false);
+        setMemberRemovalTarget(null);
+        setFeedback("");
+        setNotification(successMessage);
+        window.setTimeout(() => setNotification(""), 3500);
+      })();
+    });
+  }
+
+  function saveManagedGroupMembers() {
+    updateGroupMembers(Array.from(managedGroupMemberIds), "Group members updated");
+  }
+
+  function removeGroupMember() {
+    if (!selectedGroup || !memberRemovalTarget) {
+      return;
+    }
+
+    const remainingIds = selectedGroup.members
+      .filter(
+        (member) =>
+          member.id !== selectedGroup.createdById && member.id !== memberRemovalTarget.id
+      )
+      .map((member) => member.id);
+    updateGroupMembers(remainingIds, `${memberRemovalTarget.name} removed from the group`);
   }
 
   function sendMessage() {
@@ -1085,6 +1295,26 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
 
       void loadGroups({ silent: true });
     };
+    const updateGroupMembership = (payload: ChatGroupUpdateEvent) => {
+      const removedCurrentUser = payload.removedMemberIds?.includes(currentUser.id);
+      const removedFromOpenGroup = payload.groupId === selectedGroupId && removedCurrentUser;
+
+      if (removedFromOpenGroup) {
+        activeThreadRef.current = "";
+        setSelectedGroupId("");
+        setSelectedThreadKind("direct");
+        setMessages([]);
+        setGroupPanelOpen(false);
+        setNotification(`You were removed from ${payload.groupName ?? "a group chat"}`);
+      } else if (removedCurrentUser) {
+        setNotification(`You were removed from ${payload.groupName ?? "a group chat"}`);
+      } else if (payload.addedMemberIds?.includes(currentUser.id)) {
+        setNotification(`You were added to ${payload.groupName ?? "a group chat"}`);
+      }
+
+      window.setTimeout(() => setNotification(""), 4500);
+      void loadGroups({ silent: true });
+    };
     const removeDeletedGroup = (payload: ChatGroupUpdateEvent) => {
       setGroups((current) => current.filter((group) => group.id !== payload.groupId));
 
@@ -1104,14 +1334,71 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
     channel.bind("chat:read", updateReadState);
     channel.bind("group:updated", updateGroups);
     channel.bind("group:deleted", removeDeletedGroup);
+    channel.bind("group:membership-updated", updateGroupMembership);
 
     return () => {
       channel.unbind("chat:contact-updated", updateContacts);
       channel.unbind("chat:read", updateReadState);
       channel.unbind("group:updated", updateGroups);
       channel.unbind("group:deleted", removeDeletedGroup);
+      channel.unbind("group:membership-updated", updateGroupMembership);
     };
   }, [applyContactEvent, applyReadEvent, currentUser.id, loadGroups, selectedGroupId]);
+
+  useEffect(() => {
+    const pusher = getPusherClient();
+
+    if (!pusher) {
+      return;
+    }
+
+    const channel = pusher.subscribe("presence-agency") as ReturnType<typeof pusher.subscribe> & {
+      members?: {
+        each: (callback: (member: PresenceMember) => void) => void;
+      };
+    };
+    const applyCurrentMembers = (members?: {
+      each: (callback: (member: PresenceMember) => void) => void;
+    }) => {
+      const onlineIds = new Set<string>();
+      members?.each((member) => onlineIds.add(member.id));
+      applyPresenceSnapshot(onlineIds);
+      presenceReadyRef.current = true;
+    };
+    const handleMemberAdded = (member: PresenceMember) => {
+      setUserPresence(member.id, true);
+
+      if (presenceReadyRef.current && member.id !== currentUser.id) {
+        setNotification(`${member.info?.name ?? "A team member"} is online`);
+        window.setTimeout(() => setNotification(""), 3500);
+      }
+    };
+    const handleMemberRemoved = (member: PresenceMember) => {
+      setUserPresence(member.id, false);
+
+      if (presenceReadyRef.current && member.id !== currentUser.id) {
+        setNotification(`${member.info?.name ?? "A team member"} went offline`);
+        window.setTimeout(() => setNotification(""), 3500);
+      }
+    };
+    const handleSubscriptionSucceeded = (members: {
+      each: (callback: (member: PresenceMember) => void) => void;
+    }) => applyCurrentMembers(members);
+
+    channel.bind("pusher:subscription_succeeded", handleSubscriptionSucceeded);
+    channel.bind("pusher:member_added", handleMemberAdded);
+    channel.bind("pusher:member_removed", handleMemberRemoved);
+
+    if (channel.subscribed && channel.members) {
+      applyCurrentMembers(channel.members);
+    }
+
+    return () => {
+      channel.unbind("pusher:subscription_succeeded", handleSubscriptionSucceeded);
+      channel.unbind("pusher:member_added", handleMemberAdded);
+      channel.unbind("pusher:member_removed", handleMemberRemoved);
+    };
+  }, [applyPresenceSnapshot, currentUser.id, setUserPresence]);
 
   useEffect(() => {
     if (selectedThreadKind === "group" && !selectedGroupId) {
@@ -1381,6 +1668,108 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                 <Trash2 className="size-4" aria-hidden="true" />
                 Delete group
               </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {memberRemovalTarget && selectedGroup ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border bg-card p-5 text-card-foreground shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300">
+                <UserMinus className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">
+                  Remove {memberRemovalTarget.name}?
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  They will immediately lose access to {selectedGroup.name}. Existing group history will remain for current members.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setMemberRemovalTarget(null)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" disabled={isPending} onClick={removeGroupMember}>
+                <UserMinus className="size-4" aria-hidden="true" />
+                Remove member
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {groupMembersManageOpen && selectedGroup ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div className="flex max-h-[min(720px,90vh)] w-full max-w-lg flex-col rounded-xl border bg-card text-card-foreground shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Group access
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-foreground">Manage members</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Choose who can participate in {selectedGroup.name}.
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setGroupMembersManageOpen(false)}>
+                <X className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
+            <div className="overflow-y-auto p-3">
+              <div className="grid gap-2">
+                {eligibleMembers.map((member) => {
+                  const selected = managedGroupMemberIds.has(member.id);
+
+                  return (
+                    <label
+                      key={member.id}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-muted/35",
+                        selected && "border-primary bg-primary/10"
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleManagedGroupMember(member.id)}
+                        className="size-4 accent-primary"
+                      />
+                      <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
+                        {member.avatar}
+                        <span
+                          className={cn(
+                            "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
+                            member.online ? "bg-emerald-500" : "bg-slate-300"
+                          )}
+                        />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-foreground">{member.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                      </div>
+                      <Badge variant="secondary" className="capitalize">{member.role}</Badge>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t px-5 py-4">
+              <p className="text-xs font-medium text-muted-foreground">
+                {managedGroupMemberIds.size + 1} total members including you
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setGroupMembersManageOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" disabled={isPending} onClick={saveManagedGroupMembers}>
+                  <UserPlus className="size-4" aria-hidden="true" />
+                  Save members
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -2065,6 +2454,19 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                       {selectedGroup.name} · {selectedGroup.memberCount} members
                     </p>
                   </div>
+                  {currentUser.role === "manager" && selectedGroup.createdById === currentUser.id ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="ml-auto size-9"
+                      aria-label="Add or manage group members"
+                      title="Manage members"
+                      onClick={openGroupMemberManager}
+                    >
+                      <UserPlus className="size-4" aria-hidden="true" />
+                    </Button>
+                  ) : null}
                 </div>
                 <div className="border-b px-4 pt-3">
                   <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted/40 p-1">
@@ -2094,52 +2496,71 @@ export function ChatWorkspace({ currentUser }: ChatWorkspaceProps) {
                   {groupPanelTab === "members" ? (
                     <div className="space-y-2">
                       {selectedGroup.members.map((member) => (
-                        <button
+                        <div
                           key={member.id}
-                          type="button"
-                          onClick={() => {
-                            if (member.id === currentUser.id) {
-                              return;
-                            }
-
-                            const existingContact = contacts.find((contact) => contact.participant.id === member.id);
-                            if (existingContact) {
-                              void selectContact(existingContact);
-                            }
-                          }}
                           className={cn(
-                            "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
+                            "flex w-full items-center gap-2 rounded-xl border p-3 text-left transition-colors",
                             member.id === currentUser.id
-                              ? "cursor-default bg-muted/25"
+                              ? "bg-muted/25"
                               : "hover:border-primary/40 hover:bg-muted/35"
                           )}
                         >
-                          <span className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
-                            {member.avatar}
-                            <span
-                              className={cn(
-                                "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
-                                member.online ? "bg-emerald-500" : "bg-slate-300"
-                              )}
-                            />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="truncate font-semibold text-foreground">{member.name}</p>
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                            onClick={() => {
+                              if (member.id === currentUser.id) {
+                                return;
+                              }
+
+                              const existingContact = contacts.find((contact) => contact.participant.id === member.id);
+                              if (existingContact) {
+                                void selectContact(existingContact);
+                              }
+                            }}
+                          >
+                            <span className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
+                              {member.avatar}
                               <span
                                 className={cn(
-                                  "rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
-                                  roleTone(member.role)
+                                  "absolute bottom-0 right-0 size-3 rounded-full border-2 border-card",
+                                  member.online ? "bg-emerald-500" : "bg-slate-300"
                                 )}
-                              >
-                                {member.id === selectedGroup.createdById ? "Owner" : member.role}
-                              </span>
+                              />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="truncate font-semibold text-foreground">{member.name}</p>
+                                <span
+                                  className={cn(
+                                    "rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
+                                    roleTone(member.role)
+                                  )}
+                                >
+                                  {member.id === selectedGroup.createdById ? "Owner" : member.role}
+                                </span>
+                              </div>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {formatLastSeen(member.lastSeenAt, member.online)}
+                              </p>
                             </div>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {formatLastSeen(member.lastSeenAt, member.online)}
-                            </p>
-                          </div>
-                        </button>
+                          </button>
+                          {currentUser.role === "manager" &&
+                          selectedGroup.createdById === currentUser.id &&
+                          member.id !== selectedGroup.createdById ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 shrink-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                              aria-label={`Remove ${member.name} from group`}
+                              title="Remove member"
+                              onClick={() => setMemberRemovalTarget(member)}
+                            >
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            </Button>
+                          ) : null}
+                        </div>
                       ))}
                     </div>
                   ) : (

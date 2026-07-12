@@ -7,6 +7,7 @@ import { ScrollToTopButton } from "@/components/scroll-to-top-button";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import type { User, UserRole } from "@/lib/models";
+import { getPusherClient } from "@/lib/pusher-client";
 
 type AppShellProps = {
   role: UserRole;
@@ -27,6 +28,14 @@ export function AppShell({ role, active, title, currentUser, children }: AppShel
       setCollapsed(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    getPusherClient()?.subscribe("presence-agency");
+  }, [currentUser?.id]);
 
   function toggleSidebar() {
     setCollapsed((current) => {

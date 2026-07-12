@@ -21,3 +21,8 @@ export function getPusherClient() {
 
   return pusherClient;
 }
+
+export function disconnectPusherClient() {
+  pusherClient?.disconnect();
+  pusherClient = null;
+}

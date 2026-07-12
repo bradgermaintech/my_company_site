@@ -22,6 +22,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid Pusher authorization request." }, { status: 400 });
   }
 
+  if (channelName === "presence-agency") {
+    return NextResponse.json(
+      pusherServer.authorizeChannel(socketId, channelName, {
+        user_id: session.user.id,
+        user_info: {
+          name: session.user.name ?? "AlignOps member",
+          role: session.user.role,
+          avatar: session.user.avatar
+        }
+      })
+    );
+  }
+
   if (channelName === `private-user-${session.user.id}`) {
     return NextResponse.json(pusherServer.authorizeChannel(socketId, channelName));
   }

@@ -116,8 +116,8 @@ export function Sidebar({ active, collapsed, currentUser, onToggle, role }: Side
                 href={item.href}
                 title={collapsed ? item.label : undefined}
                 className={cn(
-                  "relative flex items-center rounded-lg py-2.5 text-[20px] font-semibold leading-none text-muted-foreground transition-all duration-300 ease-out hover:bg-muted hover:text-foreground",
-                  collapsed ? "justify-center px-1.5" : "gap-2 px-2.5",
+                  "relative flex items-center rounded-lg py-2.5 text-base font-semibold leading-none text-slate-700 transition-all duration-300 ease-out hover:bg-slate-100 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white",
+                  collapsed ? "justify-center px-1.5" : "gap-3 px-2.5",
                   active === item.key &&
                     "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                 )}
