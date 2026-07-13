@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
-  UserRound
+  UserRound,
+  X
 } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -48,7 +49,7 @@ import {
   stageDescriptions,
   stageOwners
 } from "@/lib/pipeline-workflow";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import type { JobApplication, PipelineStatus, User } from "@/lib/models";
 
 type ApplicationCrudWorkbenchProps = {
@@ -460,7 +461,7 @@ export function ApplicationCrudWorkbench({
                   className="h-12 pl-12 text-base"
                   placeholder="Search title, company, notes, resume"
                 />
- 
+
                 <p className="mt-2 pl-1 text-xs leading-5 text-muted-foreground">
                   Search across the key application fields when you need to find one record quickly.
                 </p>
@@ -804,6 +805,8 @@ function ApplicationFormSheet({
     return getAllowedNextStatuses(currentUser, application);
   }, [application, currentUser, mode]);
   const canReassignOwners = currentUser.role === "manager";
+  const isBidder = currentUser.role === "bidder";
+  const useCenteredCreateModal = isBidder && mode === "create";
   const form = useForm<ApplicationInput>({
     resolver: zodResolver(applicationInputSchema),
     defaultValues: getDefaultValues({
@@ -828,10 +831,32 @@ function ApplicationFormSheet({
   }, [application, bidders, callers, currentUser, developers, form]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/45 backdrop-blur-sm">
-      <div className="h-full w-full max-w-2xl overflow-y-auto border-l bg-background shadow-2xl">
-        <div className="flex min-h-full flex-col">
-          <div className="border-b px-6 py-5">
+    <div
+      className={cn(
+        "fixed inset-0 z-50 flex bg-slate-950/55 p-4 backdrop-blur-sm sm:p-6",
+        useCenteredCreateModal ? "items-center justify-center" : "justify-end p-0 sm:p-0"
+      )}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className={cn(
+          "no-scrollbar w-full overflow-y-auto bg-background shadow-2xl",
+          useCenteredCreateModal
+            ? "max-h-[calc(100vh-2rem)] max-w-5xl rounded-xl border sm:max-h-[calc(100vh-3rem)]"
+            : "h-full max-w-2xl border-l"
+        )}
+      >
+        <div className={cn("flex flex-col", useCenteredCreateModal ? "min-h-0" : "min-h-full")}>
+          <div
+            className={cn(
+              "border-b px-6 py-5",
+              useCenteredCreateModal && "sticky top-0 z-10 bg-background/95 backdrop-blur"
+            )}
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
@@ -843,8 +868,8 @@ function ApplicationFormSheet({
                     : "Update assignment, stage, and finance details"}
                 </h2>
               </div>
-              <Button type="button" variant="ghost" onClick={onClose}>
-                Close
+              <Button type="button" variant="ghost" size="icon" aria-label="Close application form" onClick={onClose}>
+                <X className="size-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -853,6 +878,13 @@ function ApplicationFormSheet({
             className="flex flex-1 flex-col"
             onSubmit={form.handleSubmit(onSubmit)}
           >
+            {isBidder ? (
+              <div className="hidden" aria-hidden="true">
+                <input type="hidden" {...form.register("callerId")} />
+                <input type="hidden" {...form.register("developerId")} />
+                <input type="hidden" {...form.register("paymentStatus")} />
+              </div>
+            ) : null}
             <div className="grid flex-1 gap-6 px-6 py-6">
               <div className="grid gap-4 md:grid-cols-2">
  
@@ -904,7 +936,24 @@ function ApplicationFormSheet({
                 <Input placeholder="https://company.com/jobs/role" {...form.register("jdLink")} />
               </FieldWrapper>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              {isBidder ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="bidder-jd-details">JD details</Label>
+                  <Textarea
+                    id="bidder-jd-details"
+                    placeholder="Add key requirements, stack details, or bid preparation notes."
+                    className="no-scrollbar min-h-[120px] resize-none"
+                    {...form.register("notes")}
+                  />
+                  {form.formState.errors.notes?.message ? (
+                    <p className="text-sm font-medium text-destructive">
+                      {form.formState.errors.notes.message}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className={cn("grid gap-4", isBidder ? "md:grid-cols-2" : "md:grid-cols-3")}>
  
                 <FieldWrapper
                   label="Bidder owner"
@@ -924,38 +973,42 @@ function ApplicationFormSheet({
                   </Select>
                 </FieldWrapper>
  
-                <FieldWrapper
-                  label="Caller owner"
-                  helpText="The person who manages interview communication and scheduling."
-                  description="This is the teammate who typically works most from the calendar view."
-                  error={form.formState.errors.callerId?.message}
-                >
-                  <Select {...form.register("callerId")} disabled={mode === "edit" && !canReassignOwners}>
-                    {callers.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name}
-                      </option>
-                    ))}
-                  </Select>
-                </FieldWrapper>
- 
-                <FieldWrapper
-                  label="Developer owner"
-                  helpText="The person attached to the technical execution side of the opportunity."
-                  description="This helps delivery and task tracking stay attached to the right record."
-                  error={form.formState.errors.developerId?.message}
-                >
-                  <Select {...form.register("developerId")} disabled={mode === "edit" && !canReassignOwners}>
-                    {developers.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name}
-                      </option>
-                    ))}
-                  </Select>
-                </FieldWrapper>
+                {!isBidder ? (
+                  <FieldWrapper
+                    label="Caller owner"
+                    helpText="The person who manages interview communication and scheduling."
+                    description="This is the teammate who typically works most from the calendar view."
+                    error={form.formState.errors.callerId?.message}
+                  >
+                    <Select {...form.register("callerId")} disabled={mode === "edit" && !canReassignOwners}>
+                      {callers.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </FieldWrapper>
+                ) : null}
+
+                {!isBidder ? (
+                  <FieldWrapper
+                    label="Developer owner"
+                    helpText="The person attached to the technical execution side of the opportunity."
+                    description="This helps delivery and task tracking stay attached to the right record."
+                    error={form.formState.errors.developerId?.message}
+                  >
+                    <Select {...form.register("developerId")} disabled={mode === "edit" && !canReassignOwners}>
+                      {developers.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </FieldWrapper>
+                ) : null}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className={cn("grid gap-4", isBidder ? "md:grid-cols-2" : "md:grid-cols-3")}>
  
                 <FieldWrapper
                   label="Pipeline stage"
@@ -987,38 +1040,46 @@ function ApplicationFormSheet({
                   </Select>
                 </FieldWrapper>
  
-                <FieldWrapper
-                  label="Payment state"
-                  helpText="The finance progression for this opportunity after it starts maturing."
-                  description="Typical flow: unbilled, pending, approved, paid."
-                  error={form.formState.errors.paymentStatus?.message}
-                >
-                  <Select {...form.register("paymentStatus")}>
-                    {paymentStatusOptions.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </Select>
-                </FieldWrapper>
+                {!isBidder ? (
+                  <FieldWrapper
+                    label="Payment state"
+                    helpText="The finance progression for this opportunity after it starts maturing."
+                    description="Typical flow: unbilled, pending, approved, paid."
+                    error={form.formState.errors.paymentStatus?.message}
+                  >
+                    <Select {...form.register("paymentStatus")}>
+                      {paymentStatusOptions.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </Select>
+                  </FieldWrapper>
+                ) : null}
               </div>
 
- 
-              <FieldWrapper
-                label="Workflow notes"
-                helpText="Capture the latest context so the next teammate understands what happened without asking around."
-                description="Good notes include response details, interview signals, blockers, and next steps."
-                error={form.formState.errors.notes?.message}
-              >
-                <Textarea
-                  placeholder="Capture the current outreach, interview, or commercial context."
-                  className="min-h-[160px]"
-                  {...form.register("notes")}
-                />
-              </FieldWrapper>
+              {!isBidder ? (
+                <FieldWrapper
+                  label="Workflow notes"
+                  helpText="Capture the latest context so the next teammate understands what happened without asking around."
+                  description="Good notes include response details, interview signals, blockers, and next steps."
+                  error={form.formState.errors.notes?.message}
+                >
+                  <Textarea
+                    placeholder="Capture the current outreach, interview, or commercial context."
+                    className="min-h-[160px]"
+                    {...form.register("notes")}
+                  />
+                </FieldWrapper>
+              ) : null}
             </div>
 
-            <div className="flex flex-col gap-3 border-t px-6 py-5 sm:flex-row sm:items-center sm:justify-end">
+            <div
+              className={cn(
+                "flex flex-col gap-3 border-t px-6 py-5 sm:flex-row sm:items-center sm:justify-end",
+                useCenteredCreateModal && "sticky bottom-0 z-10 bg-background/95 backdrop-blur"
+              )}
+            >
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>

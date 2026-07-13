@@ -39,7 +39,7 @@ export const applicationInputSchema = z.object({
   resumeVersion: z.string().min(2, "Add the resume version used.").max(40, "Keep the resume version compact."),
   releaseStatus: z.enum(releaseStatusOptions),
   paymentStatus: z.enum(paymentStatusOptions),
-  notes: z.string().min(10, "Add a short workflow note.").max(2000, "Keep notes under 2000 characters.")
+  notes: z.string().max(2000, "Keep notes under 2000 characters.")
 });
 
 export type ApplicationInput = z.infer<typeof applicationInputSchema>;
