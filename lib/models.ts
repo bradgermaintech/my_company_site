@@ -68,13 +68,20 @@ export type Interview = {
 
 export type ResumeTailor = {
   id: string;
-  applicationId: string;
+  userId: string;
+  applicationId?: string | null;
+  jdLink?: string | null;
   baseResumeText: string;
   jobDescription: string;
   tailoredSummary: string;
   skillMatch: string;
   coverLetter: string;
+  structuredResult?: unknown;
+  sourceFileName?: string | null;
+  sourceFileType?: string | null;
+  model?: string;
   generatedAt: string;
+  updatedAt?: string;
 };
 
 export type DeveloperTask = {

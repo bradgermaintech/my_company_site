@@ -51,7 +51,16 @@ async function main() {
 
   await prisma.resumeTailor.createMany({
     data: resumeTailors.map((tailor) => ({
-      ...tailor,
+      id: tailor.id,
+      userId: applications.find((application) => application.id === tailor.applicationId)!.bidderId,
+      applicationId: tailor.applicationId,
+      jdLink: tailor.jdLink,
+      baseResumeText: tailor.baseResumeText,
+      jobDescription: tailor.jobDescription,
+      tailoredSummary: tailor.tailoredSummary,
+      skillMatch: tailor.skillMatch,
+      coverLetter: tailor.coverLetter,
+      model: "seed",
       generatedAt: new Date(tailor.generatedAt)
     }))
   });

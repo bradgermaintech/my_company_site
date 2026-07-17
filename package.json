@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/resume-tailoring.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -20,15 +23,19 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.91",
     "@auth/prisma-adapter": "^2.11.2",
     "@hookform/resolvers": "^3.9.0",
     "@prisma/client": "^6.10.1",
     "@radix-ui/react-slot": "^1.1.0",
+    "@react-pdf/renderer": "^4.5.1",
     "@tanstack/react-table": "^8.20.5",
+    "ai": "^6.0.224",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
+    "mammoth": "^1.12.0",
     "next": "15.5.19",
     "next-auth": "^4.24.14",
     "pusher": "^5.3.4",
@@ -38,6 +45,7 @@
     "react-hook-form": "^7.54.0",
     "recharts": "^2.13.3",
     "tailwind-merge": "^2.5.5",
+    "unpdf": "^1.6.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {

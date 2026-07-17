@@ -292,6 +292,7 @@ export const interviews: Interview[] = [
 export const resumeTailors: ResumeTailor[] = [
   {
     id: "tailor-3001",
+    userId: "user-bidder-1",
     applicationId: "app-1001",
     baseResumeText:
       "Senior full-stack engineer with eight years building SaaS platforms in React, Next.js, Node.js, and Postgres.",

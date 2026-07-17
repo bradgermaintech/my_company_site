@@ -27,10 +27,7 @@ export function BidderDashboard({
 }: BidderDashboardProps) {
   const bidderApplications = applications.filter((application) => application.bidderId === userId);
   const bidderApplicationIds = new Set(bidderApplications.map((application) => application.id));
-  const bidderResumeTailors = resumeTailors.filter((tailor) =>
-    bidderApplicationIds.has(tailor.applicationId)
- 
-  );
+  const bidderResumeTailors = resumeTailors.filter((tailor) => tailor.userId === userId);
   const bidderInterviews = interviews.filter((interview) =>
     bidderApplicationIds.has(interview.applicationId)
  

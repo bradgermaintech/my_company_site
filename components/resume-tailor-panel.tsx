@@ -1,10 +1,19 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { FileText, Link2, Sparkles, Upload } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  FileText,
+  Link2,
+  Loader2,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Upload
+} from "lucide-react";
+import { useRef, useState } from "react";
+import { EditableResumePreview } from "@/components/resume-tailoring/editable-preview";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,29 +24,34 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { JobApplication, ResumeTailor } from "@/lib/models";
+import {
+  resumeTailoringRequestSchema,
+  tailoredResumeSchema,
+  type TailoredResume
+} from "@/lib/resume-tailoring/schemas";
+import { cn } from "@/lib/utils";
 
-const resumeTailorSchema = z.object({
-  baseResumeText: z.string().min(80, "Paste at least a short resume summary."),
-  jobDescription: z.string().min(80, "Paste the job description or core requirements."),
-  jdLink: z.string().url("Use a valid JD link.").optional().or(z.literal(""))
-});
+type SourceFile = { name: string; type: "pdf" | "docx" } | null;
+type Notice = { tone: "error" | "success" | "info"; message: string } | null;
 
-type ResumeTailorForm = z.infer<typeof resumeTailorSchema>;
-
-type GeneratedResume = {
-  summary: string;
-  skillMatch: string;
-  coverLetter: string;
+type ApiError = {
+  error?: string;
+  retryable?: boolean;
 };
 
-const defaultValues: ResumeTailorForm = {
-  baseResumeText:
-    "Senior full-stack engineer with eight years of experience delivering SaaS products with Next.js, React, TypeScript, Node.js, Postgres, cloud automation, dashboards, integrations, and release coordination.",
-  jobDescription:
-    "We need a senior software engineer to own a Next.js SaaS platform, build workflow dashboards, integrate payments, improve analytics, collaborate with product stakeholders, and guide production releases.",
-  jdLink: "https://example.com/jobs/nextjs-saas-platform"
+type GenerationResponse = {
+  id: string;
+  result: TailoredResume;
+  quotaRemaining: number;
+};
+
+type ExtractionResponse = {
+  text: string;
+  fileName: string;
+  fileType: "pdf" | "docx";
 };
 
 type ResumeTailorPanelProps = {
@@ -49,180 +63,274 @@ export function ResumeTailorPanel({
   applications,
   initialResumeTailors
 }: ResumeTailorPanelProps) {
-  const latestTailor = initialResumeTailors[0];
-  const [generated, setGenerated] = useState<GeneratedResume | null>(
-    latestTailor
-      ? {
-          summary: latestTailor.tailoredSummary,
-          skillMatch: latestTailor.skillMatch,
-          coverLetter: latestTailor.coverLetter
-        }
+  const latest = initialResumeTailors[0];
+  const initialResult = tailoredResumeSchema.safeParse(latest?.structuredResult);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [applicationId, setApplicationId] = useState(latest?.applicationId ?? "");
+  const [baseResumeText, setBaseResumeText] = useState(latest?.baseResumeText ?? "");
+  const [jobDescription, setJobDescription] = useState(latest?.jobDescription ?? "");
+  const [jdLink, setJdLink] = useState(latest?.jdLink ?? "");
+  const [sourceFile, setSourceFile] = useState<SourceFile>(
+    latest?.sourceFileName && (latest.sourceFileType === "pdf" || latest.sourceFileType === "docx")
+      ? { name: latest.sourceFileName, type: latest.sourceFileType }
       : null
   );
-  const [isSaving, startTransition] = useTransition();
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting }
-  } = useForm<ResumeTailorForm>({
-    resolver: zodResolver(resumeTailorSchema),
-    defaultValues
-  });
-
-  const importedResumeLabel = useMemo(
-    () => "Base resume imported: Full-stack SaaS lead profile",
-    []
+  const [generated, setGenerated] = useState<TailoredResume | null>(
+    initialResult.success ? initialResult.data : null
   );
+  const [tailorId, setTailorId] = useState(latest?.id ?? null);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
-  function onSubmit(values: ResumeTailorForm) {
-    const jd = values.jobDescription.toLowerCase();
-    const focusAreas = [
-      jd.includes("next") ? "Next.js architecture" : "frontend architecture",
-      jd.includes("payment") ? "payment workflow delivery" : "workflow automation",
-      jd.includes("analytics") ? "analytics dashboards" : "operational dashboards",
-      jd.includes("release") ? "release coordination" : "cross-functional delivery"
-    ];
+  function selectApplication(id: string) {
+    setApplicationId(id);
+    const application = applications.find((item) => item.id === id);
+    if (application?.jdLink && !jdLink) setJdLink(application.jdLink);
+  }
 
-    const nextGenerated = {
-      summary: `Senior software engineer focused on ${focusAreas.join(", ")} with a track record of shipping production SaaS systems for agency and product teams.`,
-      skillMatch: `Strong matches: ${focusAreas.join(" | ")} | TypeScript | API design | stakeholder communication | delivery ownership.`,
-      coverLetter:
-        "I can help your team turn this role into reliable delivery by combining senior product engineering, clear technical communication, and release-ready execution from the first sprint."
+  async function importFile(file: File) {
+    setNotice(null);
+    setIsExtracting(true);
+    const formData = new FormData();
+    formData.set("file", file);
+
+    try {
+      const response = await fetch("/api/resume-tailors/extract", {
+        method: "POST",
+        body: formData
+      });
+      const payload = (await response.json()) as ExtractionResponse & ApiError;
+      if (!response.ok) throw new Error(payload.error || "The resume could not be imported.");
+
+      setBaseResumeText(payload.text);
+      setSourceFile({ name: payload.fileName, type: payload.fileType });
+      setNotice({ tone: "success", message: `${payload.fileName} was imported. Review the extracted text before generating.` });
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "The resume could not be imported." });
+    } finally {
+      setIsExtracting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function generateResume() {
+    setNotice(null);
+    const request = {
+      applicationId: applicationId || null,
+      baseResumeText,
+      jobDescription,
+      jdLink: jdLink || null,
+      sourceFileName: sourceFile?.name ?? null,
+      sourceFileType: sourceFile?.type ?? null
     };
+    const parsed = resumeTailoringRequestSchema.safeParse(request);
 
-    setGenerated(nextGenerated);
-
-    if (!applications[0]) {
+    if (!parsed.success) {
+      setNotice({ tone: "error", message: parsed.error.issues[0]?.message ?? "Review the resume inputs." });
       return;
     }
 
-    startTransition(async () => {
-      await fetch("/api/resume-tailors", {
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/resume-tailors", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          applicationId: applications[0].id,
-          jdLink: values.jdLink || null,
-          baseResumeText: values.baseResumeText,
-          jobDescription: values.jobDescription,
-          tailoredSummary: nextGenerated.summary,
-          skillMatch: nextGenerated.skillMatch,
-          coverLetter: nextGenerated.coverLetter
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed.data)
       });
-    });
+      const payload = (await response.json()) as GenerationResponse & ApiError;
+      if (!response.ok) throw new Error(payload.error || "The tailored resume could not be generated.");
+
+      setGenerated(payload.result);
+      setTailorId(payload.id);
+      setNotice({ tone: "success", message: `Tailored package generated. ${payload.quotaRemaining} generation${payload.quotaRemaining === 1 ? "" : "s"} remaining today.` });
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "The tailored resume could not be generated." });
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function saveResume() {
+    if (!generated || !tailorId) return;
+    const parsed = tailoredResumeSchema.safeParse(generated);
+    if (!parsed.success) {
+      setNotice({ tone: "error", message: parsed.error.issues[0]?.message ?? "Review the edited resume." });
+      return;
+    }
+
+    setNotice(null);
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/resume-tailors/${tailorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result: parsed.data })
+      });
+      const payload = (await response.json()) as ApiError;
+      if (!response.ok) throw new Error(payload.error || "The resume changes could not be saved.");
+      setNotice({ tone: "success", message: "Your resume edits were saved." });
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "The resume changes could not be saved." });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function downloadPdf() {
+    if (!generated) return;
+    const parsed = tailoredResumeSchema.safeParse(generated);
+    if (!parsed.success) {
+      setNotice({ tone: "error", message: "Complete the required resume fields before exporting." });
+      return;
+    }
+
+    setNotice(null);
+    setIsExporting(true);
+    try {
+      const { createResumePdfBlob } = await import("@/components/resume-tailoring/resume-pdf");
+      const blob = await createResumePdfBlob(parsed.data);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      const candidate = parsed.data.contact.fullName || "candidate";
+      anchor.href = url;
+      anchor.download = `${candidate.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "candidate"}-tailored-resume.pdf`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch {
+      setNotice({ tone: "error", message: "The PDF could not be rendered. Please review the resume and try again." });
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   return (
-    <Card>
-      <CardHeader className="lg:flex-row lg:items-start lg:justify-between">
-        <div>
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b bg-muted/20 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-2xl">
           <CardTitle>Resume tailoring system</CardTitle>
           <CardDescription>
-            Generate role-specific summaries, skill notes, and cover letter drafts from a base resume and JD.
+            Import a real resume, compare it with the target role, and generate an editable ATS-ready package without inventing experience.
           </CardDescription>
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline">
-            <Upload className="size-4" aria-hidden="true" />
-            Import
-          </Button>
-          <Button type="submit" form="resume-tailor-form">
-            <Sparkles className="size-4" aria-hidden="true" />
-            Generate
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <form id="resume-tailor-form" onSubmit={handleSubmit(onSubmit)} className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="flex flex-col gap-4">
-            <div className="rounded-lg border border-dashed bg-slate-50 p-4">
-              <div className="flex items-center gap-3">
-                <span className="flex size-10 items-center justify-center rounded-md bg-blue-50 text-blue-700">
-                  <FileText className="size-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">{importedResumeLabel}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Upload PDF/DOCX later or paste directly below.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="baseResumeText">Base resume</Label>
-              <Textarea id="baseResumeText" {...register("baseResumeText")} />
-              {errors.baseResumeText ? (
-                <p className="text-sm text-destructive">{errors.baseResumeText.message}</p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="jobDescription">Job description</Label>
-                <Textarea id="jobDescription" {...register("jobDescription")} />
-                {errors.jobDescription ? (
-                  <p className="text-sm text-destructive">{errors.jobDescription.message}</p>
-                ) : null}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="jdLink">JD link</Label>
-                <div className="relative">
-                  <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="jdLink" className="pl-9" {...register("jdLink")} />
-                </div>
-                {errors.jdLink ? (
-                  <p className="text-sm text-destructive">{errors.jdLink.message}</p>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4">
-            <GeneratedBlock
-              title="Tailored resume summary"
-              value={generated?.summary}
-              fallback="Generated summary will appear here after the bidder reviews the JD."
-            />
-            <GeneratedBlock
-              title="Skill match notes"
-              value={generated?.skillMatch}
-              fallback="The system highlights exact skills to emphasize during the bid."
-            />
-            <GeneratedBlock
-              title="Cover letter draft"
-              value={generated?.coverLetter}
-              fallback="A concise cover letter draft is produced for fast personalization."
-            />
-            <Button type="submit" disabled={isSubmitting || isSaving} className="w-full">
-              <Sparkles className="size-4" aria-hidden="true" />
-              {isSaving ? "Saving tailored package" : "Generate tailored package"}
+        {generated ? (
+          <div className="mt-3 flex flex-wrap gap-2 lg:mt-0">
+            <Button type="button" variant="outline" onClick={saveResume} disabled={isSaving}>
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Save edits
+            </Button>
+            <Button type="button" onClick={downloadPdf} disabled={isExporting}>
+              {isExporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Download PDF
             </Button>
           </div>
-        </form>
+        ) : null}
+      </CardHeader>
+
+      <CardContent className="p-0">
+        {notice ? <StatusNotice notice={notice} /> : null}
+        <div className="grid min-w-0 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <div className="flex min-w-0 flex-col gap-5 border-b p-5 xl:border-b-0 xl:border-r">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="tailor-application">Application link <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <Select id="tailor-application" className="mt-2" value={applicationId} onChange={(event) => selectApplication(event.target.value)}>
+                  <option value="">Not linked yet</option>
+                  {applications.map((application) => <option key={application.id} value={application.id}>{application.company} - {application.jobTitle}</option>)}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="tailor-jd-link">Job URL <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <div className="relative mt-2">
+                  <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="tailor-jd-link" className="pl-9" placeholder="https://company.com/jobs/role" value={jdLink} onChange={(event) => setJdLink(event.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div
+              onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragging(false); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsDragging(false);
+                const file = event.dataTransfer.files[0];
+                if (file) void importFile(file);
+              }}
+              className={cn("rounded-lg border border-dashed p-4 transition-colors", isDragging ? "border-primary bg-primary/5" : "bg-muted/20")}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><FileText className="size-5" /></span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{sourceFile?.name || "Upload your base resume"}</p>
+                    <p className="text-xs leading-5 text-muted-foreground">PDF or DOCX, up to 3 MB. Text is extracted once and remains editable.</p>
+                  </div>
+                </div>
+                <Button type="button" variant="outline" size="sm" disabled={isExtracting} onClick={() => fileInputRef.current?.click()}>
+                  {isExtracting ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                  {isExtracting ? "Reading" : "Choose file"}
+                </Button>
+                <input ref={fileInputRef} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); }} />
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <Label htmlFor="base-resume-text">Base resume text</Label>
+                <span className="text-xs tabular-nums text-muted-foreground">{baseResumeText.length.toLocaleString()} / 30,000</span>
+              </div>
+              <Textarea id="base-resume-text" className="min-h-72 resize-y" placeholder="Upload a resume or paste its complete text here." value={baseResumeText} onChange={(event) => setBaseResumeText(event.target.value)} maxLength={30_000} />
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <Label htmlFor="target-job-description">Target job description</Label>
+                <span className="text-xs tabular-nums text-muted-foreground">{jobDescription.length.toLocaleString()} / 25,000</span>
+              </div>
+              <Textarea id="target-job-description" className="min-h-64 resize-y" placeholder="Paste the complete job description and requirements." value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} maxLength={25_000} />
+            </div>
+
+            <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-5 text-muted-foreground">AI suggestions require review. Unsupported requirements are reported, never added as experience.</p>
+              <Button type="button" className="shrink-0" onClick={generateResume} disabled={isGenerating || isExtracting}>
+                {isGenerating ? <Loader2 className="size-4 animate-spin" /> : generated ? <RefreshCw className="size-4" /> : <Sparkles className="size-4" />}
+                {isGenerating ? "Analyzing resume" : generated ? "Generate again" : "Generate package"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="min-w-0 p-5">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold">Editable preview</h3>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Review every claim before saving or exporting. The PDF contains selectable ATS-friendly text.</p>
+            </div>
+            {isGenerating ? <GeneratingState /> : generated ? <EditableResumePreview value={generated} onChange={setGenerated} /> : <EmptyPreview />}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function GeneratedBlock({
-  title,
-  value,
-  fallback
-}: {
-  title: string;
-  value?: string;
-  fallback: string;
-}) {
+function StatusNotice({ notice }: { notice: Exclude<Notice, null> }) {
+  const Icon = notice.tone === "error" ? AlertCircle : notice.tone === "success" ? CheckCircle2 : FileText;
   return (
-    <div className="rounded-lg border bg-slate-50 p-4">
-      <p className="text-sm font-semibold text-foreground">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        {value ?? fallback}
-      </p>
+    <div className={cn("flex items-start gap-3 border-b px-5 py-3 text-sm", notice.tone === "error" ? "bg-destructive/8 text-destructive" : notice.tone === "success" ? "bg-emerald-500/8 text-emerald-700 dark:text-emerald-300" : "bg-primary/5 text-foreground")} role={notice.tone === "error" ? "alert" : "status"}>
+      <Icon className="mt-0.5 size-4 shrink-0" />
+      <p>{notice.message}</p>
     </div>
   );
+}
+
+function GeneratingState() {
+  return <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 text-center" aria-live="polite"><span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Loader2 className="size-6 animate-spin" /></span><div><p className="font-semibold">Building the tailored package</p><p className="mt-1 text-sm text-muted-foreground">Checking source facts, role alignment, and ATS structure.</p></div></div>;
+}
+
+function EmptyPreview() {
+  return <div className="flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 p-8 text-center"><span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"><FileText className="size-6" /></span><p className="mt-4 font-semibold">Your tailored resume will appear here</p><p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Add the complete source resume and job description, then generate a grounded resume, match report, and cover letter.</p></div>;
 }
